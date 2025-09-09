@@ -1,0 +1,52 @@
+﻿@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@inject AuthenticationStateProvider AuthStateProvider
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container">
+        <a class="navbar-brand fw-semibold" href="/">PunchList</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainnav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="mainnav">
+            <ul class="navbar-nav me-auto">
+                <AuthorizeView Context="auth">
+
+                    <Authorized>
+                        <li class="nav-item"><NavLink class="nav-link" href="/dashboard" Match="NavLinkMatch.All">Dashboard</NavLink></li>
+                        <li class="nav-item"><NavLink class="nav-link" href="/tasks">All tasks</NavLink></li>
+                        <AuthorizeView Roles="Admin" Context="adminAuth">
+                            <Authorized>
+                                <li class="nav-item"><NavLink class="nav-link" href="/admin">Admin</NavLink></li>
+                            </Authorized>
+                        </AuthorizeView>
+                    </Authorized>
+
+                    <NotAuthorized>
+                        <li class="nav-item"><a class="nav-link" href="/Account/Login">Login</a></li>
+                        <li class="nav-item"><a class="nav-link" href="/Account/Register">Register</a></li>
+                    </NotAuthorized>
+
+                </AuthorizeView>
+            </ul>
+
+            <ul class="navbar-nav ms-auto">
+                <AuthorizeView Context="authRight">
+                    <Authorized>
+                        @{
+                            var uid = authRight.User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+                        }
+                        <li class="nav-item"><a class="nav-link" href="/Account/Manage">Account</a></li>
+                        <li class="nav-item">
+                            <form @key="uid" action="/Account/Logout" method="post" class="d-inline">
+                                <input type="hidden" name="returnUrl" value="" />
+                                <button type="submit" class="nav-link btn btn-link">Logout</button>
+                            </form>
+                        </li>
+                    </Authorized>
+                </AuthorizeView>
+            </ul>
+        </div>
+    </div>
+</nav>

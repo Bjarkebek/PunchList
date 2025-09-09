@@ -1,0 +1,57 @@
+﻿@page "/dashboard"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using PunchList.Data
+@using PunchList.Models
+@using PunchList.Services
+@attribute [Authorize]
+<h3 class="mt-5">Projects</h3>
+<hr class="mb-5" />
+
+@if (Projects is null)
+{
+    <p>Loading...</p>
+}
+else if (Projects.Count == 0)
+{
+    <p class="text-muted">No projects yet.</p>
+}
+else
+{
+    <div class="row row-cols-1 row-cols-md-2 g-3">
+        @foreach (var p in Projects.OrderBy(p => p.CreatedAt))
+        {
+            var total = p.Tasks?.Count ?? 0;
+            var done = p.Tasks?.Count(t => t.Status == PunchList.Models.TaskStatus.Completed) ?? 0;
+            var pct = total == 0 ? 0 : (int)(100.0 * done / total);
+
+            <div class="col">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">@p.Name</h5>
+                        @if (!string.IsNullOrWhiteSpace(p.Description))
+                        {
+                            <p class="text-muted">@p.Description</p>
+                        }
+                        <div class="progress mb-2" style="height:8px;"><div class="progress-bar" style="width:@pct%"></div></div>
+                        <small class="text-muted">@done/@total completed</small>
+                    </div>
+                    <div class="card-footer"><a class="btn btn-sm btn-primary" href="/project/@p.Id">Open project</a></div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Inject]
+    public IProjectService ProjectService { get; set; }
+
+    public List<Project>? Projects { get; set; }
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        Projects = await ProjectService.GetProjectsAsync();
+    }
+}

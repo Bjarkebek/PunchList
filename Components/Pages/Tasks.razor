@@ -1,0 +1,159 @@
+﻿@page "/tasks"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using PunchList.Data
+@using PunchList.Models
+@using PunchList.Services
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@attribute [Authorize]
+@inject ApplicationDbContext Db
+
+<h3 class="mt-5">All Tasks</h3>
+<hr class="mb-4" />
+
+<div class="card mb-5">
+    <div class="card-body row g-2 align-items-end">
+        <div class="col-md-4">
+            <label class="form-label">Project</label>
+            <select class="form-select" @bind="SelectedProjectId">
+                <option value="">Show all</option>
+                @foreach (var p in projects)
+                {
+                    <option value="@p.Id">@p.Name</option>
+                }
+            </select>
+        </div>
+    </div>
+</div>
+
+@if (tasks is null)
+{
+    <p>Loading...</p>
+}
+else if (tasks.Count == 0)
+{
+
+    <p class="text-muted">No tasks.</p>
+}
+else
+{
+    @foreach (var t in tasks.OrderBy(t => t.Order).ThenBy(t => t.DueDate))
+    {
+        <div class="card mb-2">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="me-3">
+                        <div class="fw-semibold">@t.Title</div>
+                        @if (!string.IsNullOrWhiteSpace(t.Description))
+                        {
+                            <div class="text-muted small">@t.Description</div>
+                        }
+                        <div class="small text-muted">[Project @t.ProjectId]</div>
+                    </div>
+                    <span class="badge @(t.Status == PunchList.Models.TaskStatus.Completed ? "status-completed" : t.Status == PunchList.Models.TaskStatus.InProgress ? "status-inprogress" : "status-new")">@t.Status</span>
+                </div>
+
+                @if (t.SubTasks?.Any() == true)
+                {
+                    <ul class="list-group list-group-flush mt-2">
+                        @foreach (var st in t.SubTasks.OrderBy(s => s.Order))
+                        {
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <span>@st.Title</span>
+                                <input type="checkbox"
+                                       @bind="st.IsDone"
+                                       @bind:after="async () => await subTaskItemService.UpdateAsync(st.Id, isDone: st.IsDone)" />
+                            </li>
+                        }
+                    </ul>
+                }
+
+                <div class="d-flex gap-2 mt-2">
+                    @if (t.Status != PunchList.Models.TaskStatus.Completed)
+                    {
+                        <button class="btn btn-sm btn-success"
+                                disabled="@(!CanComplete(t) || string.IsNullOrEmpty(userId))"
+                                @onclick="async () => await taskItemService.CompleteTask(t.Id, userId)">
+                            ✓ Complete
+                        </button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-sm btn-secondary" @onclick="() => taskItemService.ReopenTask(t.Id)">↺ Reopen</button>
+                    }
+                    <AuthorizeView Roles="Admin">
+                        <button class="btn btn-sm btn-outline-danger" @onclick="() => taskItemService.DeleteTask(t.Id)">Delete</button>
+                    </AuthorizeView>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Inject]
+    public ITaskItemService taskItemService { get; set; }
+    [Inject]
+    public ISubTaskItemService subTaskItemService { get; set; }
+    [Inject]
+    public IProjectService projectService { get; set; }
+
+    [CascadingParameter]
+    public Task<AuthenticationState> AuthenticationStateTask { get; set; } = default!;
+
+    List<Project> projects = new();
+    List<TaskItem>? tasks;
+    List<TaskItem>? allTasks;
+
+    string? userId;
+
+    string? _selectedProjectId;
+    string? SelectedProjectId
+    {
+        get => _selectedProjectId;
+        set
+        {
+            _selectedProjectId = value;
+            ApplyFilter();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Load user id
+        var authState = await AuthenticationStateTask;
+        userId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        projects = await projectService.GetProjectsAsync();
+        allTasks = await taskItemService.LoadTasks();
+        ApplyFilter();
+    }
+
+    void ApplyFilter()
+    {
+        if (allTasks is null)
+        {
+            tasks = null; // still loading
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(SelectedProjectId))
+        {
+            tasks = allTasks.ToList();
+            return;
+        }
+
+        if (int.TryParse(SelectedProjectId, out var pid))
+        {
+            tasks = allTasks.Where(t => t.ProjectId == pid).ToList();
+        }
+        else
+        {
+            tasks = new List<TaskItem>();
+        }
+    }
+
+    // A task can be completed only when it has no subtasks or all subtasks are done.
+    bool CanComplete(TaskItem t) => t.SubTasks?.All(s => s.IsDone) ?? true;
+}

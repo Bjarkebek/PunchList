@@ -1,0 +1,25 @@
+@page "/"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@attribute [Authorize]
+@inject NavigationManager Navigation
+
+<p>Redirecting…</p>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState> AuthenticationStateTask { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthenticationStateTask).User;
+
+        if (user.IsInRole("Admin"))
+        {
+            Navigation.NavigateTo("/admin", replace: true);
+        }
+        else
+        {
+            Navigation.NavigateTo("/dashboard", replace: true);
+        }
+    }
+}

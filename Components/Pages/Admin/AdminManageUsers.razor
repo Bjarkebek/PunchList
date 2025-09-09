@@ -1,0 +1,400 @@
+﻿@page "/admin/users"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.ComponentModel.DataAnnotations
+@using PunchList.Data
+@attribute [Authorize(Roles = "Admin")]
+@inject UserManager<ApplicationUser> UserManager
+@inject RoleManager<IdentityRole> RoleManager
+
+<h3 class="mt-5">Manage Users</h3>
+<hr class="mb-4" />
+
+@if (isLoading)
+{
+    <p>Loading...</p>
+}
+else
+{
+    @if (!string.IsNullOrWhiteSpace(message))
+    {
+        <div class="alert alert-success">@message</div>
+    }
+    @if (!string.IsNullOrWhiteSpace(error))
+    {
+        <div class="alert alert-danger">@error</div>
+    }
+
+    <div class="row g-4">
+        <div class="col-12">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center" @onclick="ToggleCreateBox" style="cursor:pointer;">
+                    <span class="fw-semibold">Create User</span>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick:stopPropagation="true" @onclick="ToggleCreateBox" disabled="@busy">
+                        @(showCreateUser ? "Close ▾" : "Open ▸")
+                    </button>
+                </div>
+                <div class="card-body">
+                    @if (showCreateUser)
+                    {
+                        <EditForm EditContext="@createUserEditContext" OnValidSubmit="@CreateUserAsync">
+                            <DataAnnotationsValidator />
+                            <div class="mb-2">
+                                <label class="form-label">User name</label>
+                                <InputText class="form-control" @bind-Value="newUser.UserName" />
+                                <ValidationMessage For="@(() => newUser.UserName)" />
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Email</label>
+                                <InputText class="form-control" type="email" @bind-Value="newUser.Email" />
+                                <ValidationMessage For="@(() => newUser.Email)" />
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Password</label>
+                                <InputText class="form-control" type="password" @bind-Value="newUser.Password" />
+                                <ValidationMessage For="@(() => newUser.Password)" />
+                            </div>
+                            <div class="form-check mb-3">
+                                <InputCheckbox class="form-check-input" @bind-Value="newUser.IsAdmin" />
+                                <label class="form-check-label">Admin</label>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-primary" type="submit" disabled="@busy">Create</button>
+                                <button class="btn btn-outline-secondary" type="button" @onclick="CancelCreate" disabled="@busy">Cancel</button>
+                            </div>
+                        </EditForm>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span class="fw-semibold">All Users</span>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="ReloadUsers" disabled="@busy">Reload</button>
+                </div>
+                <div class="card-body">
+                    @if (users is null || users.Count == 0)
+                    {
+                        <p class="text-muted">No users.</p>
+                    }
+                    else
+                    {
+                        <div class="table-responsive" style="max-height:520px; overflow:auto;">
+                            <table class="table table-sm align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>User</th>
+                                        <th>Email</th>
+                                        <th>Roles</th>
+                                        <th style="width:1%;">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var u in users)
+                                    {
+                                        var isAdmin = userRoles.TryGetValue(u.Id, out var rs) && rs.Contains(AdminRole);
+                                        var isSelf = u.Id == currentUserId;
+                                        <tr>
+                                            <td>@(string.IsNullOrWhiteSpace(u.DisplayName) ? u.UserName : u.DisplayName)</td>
+                                            <td>@u.Email</td>
+                                            <td>
+                                                @if (userRoles.TryGetValue(u.Id, out var roles) && roles.Any())
+                                                {
+                                                    <span>@string.Join(", ", roles)</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">—</span>
+                                                }
+                                            </td>
+                                            <td class="text-nowrap">
+                                                @if (!isAdmin)
+                                                {
+                                                    <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => MakeAdmin(u)" disabled="@busy">Make Admin</button>
+                                                }
+                                                else
+                                                {
+                                                    <button class="btn btn-sm btn-outline-warning me-1" @onclick="() => RemoveAdmin(u)" disabled="@(busy ? "disabled" : null)">Remove Admin</button>
+                                                }
+                                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteUser(u)" disabled="@(busy ? "disabled" : null)">Delete</button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private const string AdminRole = "Admin";
+    private const string UserRole = "User";
+    private bool isLoading = true;
+    private bool busy = false;
+    private string? message;
+    private string? error;
+
+    private List<ApplicationUser>? users;
+    private readonly Dictionary<string, List<string>> userRoles = new();
+    [CascadingParameter] private Task<AuthenticationState> AuthenticationStateTask { get; set; } = default!;
+    private string? currentUserId;
+
+    private NewUserModel newUser = new();
+    private bool showCreateUser = false;
+    private EditContext? createUserEditContext;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await EnsureRoleAsync(UserRole);
+            await EnsureRoleAsync(AdminRole);
+
+            var auth = await AuthenticationStateTask;
+            currentUserId = auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+            await LoadUsersAsync();
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to load users: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task EnsureRoleAsync(string roleName)
+    {
+        if (!await RoleManager.RoleExistsAsync(roleName))
+        {
+            var res = await RoleManager.CreateAsync(new IdentityRole(roleName));
+            if (!res.Succeeded)
+            {
+                throw new InvalidOperationException($"Unable to ensure '{roleName}' role: {string.Join(", ", res.Errors.Select(e => e.Description))}");
+            }
+        }
+    }
+
+    private async Task LoadUsersAsync()
+    {
+        users = UserManager.Users.OrderBy(u => u.UserName).ToList();
+        userRoles.Clear();
+        foreach (var u in users)
+        {
+            userRoles[u.Id] = (await UserManager.GetRolesAsync(u)).ToList();
+        }
+    }
+
+    private async Task ReloadUsers()
+    {
+        if (busy) return;
+        busy = true; message = error = null;
+        try
+        {
+            await LoadUsersAsync();
+            message = "Users reloaded.";
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to reload users: {ex.Message}";
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task CreateUserAsync()
+    {
+        if (busy) return;
+        busy = true; message = error = null;
+
+        try
+        {
+            var user = new ApplicationUser
+            {
+                UserName = newUser.UserName!.Trim(),
+                Email = string.IsNullOrWhiteSpace(newUser.Email) ? null : newUser.Email!.Trim(),
+                EmailConfirmed = false,
+            };
+
+            var result = await UserManager.CreateAsync(user, newUser.Password!);
+            if (!result.Succeeded)
+            {
+                error = string.Join("; ", result.Errors.Select(e => e.Description));
+                return;
+            }
+
+            // Always add default "User" role
+            await EnsureRoleAsync(UserRole);
+            var userRoleRes = await UserManager.AddToRoleAsync(user, UserRole);
+            if (!userRoleRes.Succeeded)
+            {
+                error = string.Join("; ", userRoleRes.Errors.Select(e => e.Description));
+                await UserManager.DeleteAsync(user);
+                return;
+            }
+
+            // Optionally add Admin role
+            var addAdmin = newUser.IsAdmin;
+            if (addAdmin)
+            {
+                await EnsureRoleAsync(AdminRole);
+                var adminRes = await UserManager.AddToRoleAsync(user, AdminRole);
+                if (!adminRes.Succeeded)
+                {
+                    error = string.Join("; ", adminRes.Errors.Select(e => e.Description));
+                    await UserManager.DeleteAsync(user);
+                    return;
+                }
+            }
+
+            newUser = new();
+            createUserEditContext = new EditContext(newUser); // reset validation state
+            await LoadUsersAsync();
+            message = addAdmin ? "User created and granted Admin." : "User created.";
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to create user: {ex.Message}";
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task DeleteUser(ApplicationUser user)
+    {
+        if (busy) return;
+        busy = true; message = error = null;
+
+        try
+        {
+            var res = await UserManager.DeleteAsync(user);
+            if (!res.Succeeded)
+            {
+                error = string.Join("; ", res.Errors.Select(e => e.Description));
+                return;
+            }
+
+            await LoadUsersAsync();
+            message = $"User '{user.UserName}' deleted.";
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to delete user: {ex.Message}";
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task MakeAdmin(ApplicationUser user)
+    {
+        if (busy) return;
+        busy = true; message = error = null;
+
+        try
+        {
+            await EnsureRoleAsync(AdminRole);
+            var res = await UserManager.AddToRoleAsync(user, AdminRole);
+            if (!res.Succeeded)
+            {
+                error = string.Join(", ", res.Errors.Select(e => e.Description));
+                return;
+            }
+            await LoadUsersAsync();
+            message = $"Granted Admin to {user.UserName}.";
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to grant Admin: {ex.Message}";
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task RemoveAdmin(ApplicationUser user)
+    {
+        if (busy) return;
+        busy = true; message = error = null;
+
+        try
+        {
+            var res = await UserManager.RemoveFromRoleAsync(user, AdminRole);
+            if (!res.Succeeded)
+            {
+                error = string.Join(", ", res.Errors.Select(e => e.Description));
+                return;
+            }
+            await LoadUsersAsync();
+            message = $"Removed Admin from {user.UserName}.";
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to remove Admin: {ex.Message}";
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private void ToggleCreateBox()
+    {
+        if (busy) return;
+
+        if (showCreateUser)
+        {
+            CancelCreateInternal();
+        }
+        else
+        {
+            OpenCreateInternal();
+        }
+    }
+
+    private void CancelCreate()
+    {
+        if (busy) return;
+        CancelCreateInternal();
+    }
+
+    private void OpenCreateInternal()
+    {
+        showCreateUser = true;
+        createUserEditContext = new EditContext(newUser);
+    }
+
+    private void CancelCreateInternal()
+    {
+        newUser = new();
+        createUserEditContext = new EditContext(newUser); // clears validation messages
+        showCreateUser = false;
+    }
+
+    private sealed class NewUserModel
+    {
+        [Required, StringLength(64, MinimumLength = 3)]
+        public string? UserName { get; set; }
+        [EmailAddress]
+        public string? Email { get; set; }
+        [Required, StringLength(100, MinimumLength = 6)]
+        public string? Password { get; set; }
+        public bool IsAdmin { get; set; }
+    }
+}
