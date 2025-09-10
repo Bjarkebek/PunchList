@@ -45,7 +45,7 @@ else if (tasks.Count == 0)
 }
 else
 {
-    @foreach (var t in tasks.OrderBy(t => t.Order).ThenBy(t => t.DueDate))
+    @foreach (var t in tasks.OrderBy(t => t.ProjectId).ThenBy(t => t.DueDate))
     {
         <div class="card mb-2">
             <div class="card-body">

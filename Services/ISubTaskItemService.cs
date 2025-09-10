@@ -10,7 +10,6 @@ namespace PunchList.Services
         Task<SubTaskItem?> UpdateAsync(int id, string? title = null, bool? isDone = null, int? order = null);
         Task DeleteAsync(int id);
 
-        
-
+        Task ToggleSubTaskAsync(int taskItemId, int subTaskId);
     }
 }

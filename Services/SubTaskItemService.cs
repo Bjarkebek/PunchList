@@ -68,5 +68,13 @@ namespace PunchList.Services
             _db.SubTaskItems.Remove(st);
             await _db.SaveChangesAsync();
         }
+
+        public async Task ToggleSubTaskAsync(int taskItemId, int subTaskId)
+        {
+            var st = await _db.SubTaskItems.FirstOrDefaultAsync(x => x.Id == subTaskId && x.TaskItemId == taskItemId);
+            if (st is null) return;
+            st.IsDone = !st.IsDone;
+            await _db.SaveChangesAsync();
+        }
     }
 }

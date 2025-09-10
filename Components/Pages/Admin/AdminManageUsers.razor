@@ -34,45 +34,46 @@ else
     <div class="row g-4">
         <div class="col-12">
             <div class="card h-100">
-                <div class="card-header d-flex justify-content-between align-items-center" style="cursor:pointer;">
+                <div class="card-header d-flex justify-content-between align-items-center" style="cursor:pointer;" @onclick="ToggleCardBox">
                     <span class="fw-semibold">Create User</span>
-                    <button class="btn btn-sm btn-outline-secondary" 
+                    <button class="btn btn-outline-hidden" 
                         @onclick:stopPropagation="true" 
                         @onclick="ToggleCardBox">
-                        @(IsExpanded ? "Close ▾" : "Open ▸")
+                        @(IsExpanded ? "▾" : "▸")
                     </button>
                 </div>
-                <div class="card-body">
+                
                     @if (IsExpanded)
                     {
-                        <EditForm EditContext="@ToggleCard" OnValidSubmit="@CreateUserAsync">
-                            <DataAnnotationsValidator />
-                            <div class="mb-2">
-                                <label class="form-label">User name</label>
-                                <InputText class="form-control" @bind-Value="newUser.UserName" />
-                                <ValidationMessage For="@(() => newUser.UserName)" />
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label">Email</label>
-                                <InputText class="form-control" type="email" @bind-Value="newUser.Email" />
-                                <ValidationMessage For="@(() => newUser.Email)" />
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label">Password</label>
-                                <InputText class="form-control" type="password" @bind-Value="newUser.Password" />
-                                <ValidationMessage For="@(() => newUser.Password)" />
-                            </div>
-                            <div class="form-check mb-3">
-                                <InputCheckbox class="form-check-input" @bind-Value="newUser.IsAdmin" />
-                                <label class="form-check-label">Admin</label>
-                            </div>
-                            <div class="d-flex gap-2">
-                                <button class="btn btn-primary" type="submit" >Create</button>
-                                <button class="btn btn-outline-secondary" type="button" @onclick="CancelAddUser" >Cancel</button>
-                            </div>
-                        </EditForm>
+                        <div class="card-body">
+                            <EditForm EditContext="@ToggleCard" OnValidSubmit="@CreateUserAsync">
+                                <DataAnnotationsValidator />
+                                <div class="mb-2">
+                                    <label class="form-label">User name</label>
+                                    <InputText class="form-control" @bind-Value="newUser.UserName" />
+                                    <ValidationMessage For="@(() => newUser.UserName)" />
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label">Email</label>
+                                    <InputText class="form-control" type="email" @bind-Value="newUser.Email" />
+                                    <ValidationMessage For="@(() => newUser.Email)" />
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label">Password</label>
+                                    <InputText class="form-control" type="password" @bind-Value="newUser.Password" />
+                                    <ValidationMessage For="@(() => newUser.Password)" />
+                                </div>
+                                <div class="form-check mb-3">
+                                    <InputCheckbox class="form-check-input" @bind-Value="newUser.IsAdmin" />
+                                    <label class="form-check-label">Admin</label>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-primary" type="submit" >Create</button>
+                                    <button class="btn btn-outline-secondary" type="button" @onclick="CancelAddUser" >Cancel</button>
+                                </div>
+                            </EditForm>
+                        </div>
                     }
-                </div>
             </div>
         </div>
 

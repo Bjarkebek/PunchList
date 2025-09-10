@@ -26,38 +26,69 @@ else if (project is null)
 else
 {
     <div class="d-flex justify-content-between align-items-center mt-4">
-        <div>
-            <h4 class="mb-0">@project.Name</h4>
-            @if (!string.IsNullOrWhiteSpace(project.Description))
+        <div class="flex-grow-1">
+            @if (!isEditingProject)
             {
-                <div class="text-muted">@project.Description</div>
+                <div>
+                    <h4 class="mb-0">@project.Name</h4>
+                    @if (!string.IsNullOrWhiteSpace(project.Description))
+                    {
+                        <div class="text-muted">@project.Description</div>
+                    }
+                </div>
+            }
+            else
+            {
+                <EditForm EditContext="@ProjectEditContext" OnValidSubmit="@UpdateProject">
+                    <DataAnnotationsValidator />
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-4">
+                            <label class="form-label">Project name</label>
+                            <InputText class="form-control" @bind-Value="editProject.Name" />
+                            <ValidationMessage For="@(() => editProject.Name)" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Project description</label>
+                            <InputText class="form-control" rows="1" @bind-Value="editProject.Description" />
+                        </div>
+                        <div class="col-md-2 d-flex gap-2">
+                            <button class="btn btn-primary" type="submit">Save</button>
+                            <button class="btn btn-outline-secondary" type="button" @onclick="CancelEditProject">Cancel</button>
+                        </div>
+                    </div>
+                </EditForm>
             }
         </div>
-        <button class="btn btn-outline-danger" @onclick="DeleteProject" >Delete Project</button>
+        <div class="ms-3 d-flex gap-2">
+            @if (!isEditingProject)
+            {
+                <button class="btn btn-outline-secondary" @onclick="OpenEditProject">Edit</button>
+            }
+            @if (!isEditingProject)
+            {
+                <button class="btn btn-outline-danger"  @onclick="DeleteProject">Delete Project</button>
+            }
+        </div>
     </div>
     <hr />
 
-    @if (!string.IsNullOrWhiteSpace(message))
-    {
-        <div class="alert alert-success">@message</div>
-    }
     @if (!string.IsNullOrWhiteSpace(error))
     {
         <div class="alert alert-danger">@error</div>
     }
 
     <div class="card mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center" style="cursor:pointer;">
+        <div class="card-header d-flex justify-content-between align-items-center" style="cursor:pointer;" @onclick="ToggleCardBox">
             <span class="fw-semibold">Add Task</span>
-            <button class="btn btn-sm btn-outline-secondary" 
+            <button class="btn btn-outline-hidden" 
                 @onclick:stopPropagation="true" 
                 @onclick="ToggleCardBox">
-                @(IsExpanded ? "Close ▾" : "Open ▸")
+                @(IsExpanded ? "▾" : "▸")
             </button>
         </div>
-        <div class="card-body">
-            @if (IsExpanded)
-            {
+        @if (IsExpanded)
+        {
+            <div class="card-body">
                 <EditForm EditContext="@ToggleCard" OnValidSubmit="@CreateTaskAsync">
                     <DataAnnotationsValidator />
                     <div class="row g-2">
@@ -76,12 +107,12 @@ else
                         </div>
                     </div>
                     <div class="mt-2 d-flex gap-2">
-                        <button class="btn btn-primary" type="submit" >Add Task</button>
-                        <button class="btn btn-outline-secondary" type="button" @onclick="CancelAddTask" >Cancel</button>
+                        <button class="btn btn-primary" type="submit">Add Task</button>
+                        <button class="btn btn-outline-secondary" type="button" @onclick="CancelAddTask">Cancel</button>
                     </div>
                 </EditForm>
-            }
-        </div>
+            </div>
+        }
     </div>
 
     @if (tasks.Count == 0)
@@ -90,35 +121,82 @@ else
     }
     else
     {
-        @foreach (var t in tasks.OrderBy(t => t.Order).ThenBy(t => t.DueDate))
+        @foreach (var t in tasks.OrderBy(t => t.DueDate))
         {
             <div class="card mb-2">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start">
                         <div class="me-3">
-                            <h4 class="fw-bold">@t.Title</h4>
-                            @if (!string.IsNullOrWhiteSpace(t.Description))
+                            @if (IsTaskEditing(t.Id))
                             {
-                                <h5 class="text-muted small">@t.Description</h5>
+                                var editModel = editTasks[t.Id];
+                                <EditForm Model="@editModel" OnValidSubmit="@(() => UpdateTask(t.Id))">
+                                    <DataAnnotationsValidator />
+                                    <div class="row g-2 align-items-end">
+                                        <div class="col-md-4">
+                                            <label class="form-label">Title</label>
+                                            <InputText class="form-control" @bind-Value="editModel.Title" />
+                                            <ValidationMessage For="@(() => editModel.Title)" />
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">Description</label>
+                                            <InputText class="form-control" @bind-Value="editModel.Description" />
+                                            <ValidationMessage For="@(() => editModel.Description)" />
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">Due</label>
+                                            <InputDate class="form-control" @bind-Value="editModel.DueDate" />
+                                        </div>
+                                        <div class="col-md-1 d-flex gap-2">
+                                            <button class="btn btn-primary" type="submit">Save</button>
+                                            <button class="btn btn-outline-secondary" type="button" @onclick="() => CancelEditTask(t.Id)">Cancel</button>
+                                        </div>
+                                    </div>
+                                </EditForm>
                             }
+                            else{
+                                <h4 class="fw-bold">@t.Title</h4>
+                                @if (!string.IsNullOrWhiteSpace(t.Description))
+                                {
+                                    <h5 class="text-muted small">@t.Description</h5>
+                                }
+                                @if (t.DueDate.HasValue)
+                                {
+                                    <span class="text-muted small">Due: @t.DueDate.Value.ToShortDateString()</span>
+                                }
+                            }
+
+
+                            
                         </div>
                         <div class="d-flex align-items-center gap-2">
                             <span class="badge @(t.Status == PunchList.Models.TaskStatus.Completed ? "status-completed" : t.Status == PunchList.Models.TaskStatus.InProgress ? "status-inprogress" : "status-new")">@t.Status</span>
-                            <button class="btn btn-outline-secondary" @onclick="() => ToggleTask(t.Id)">
-                                @(IsTaskExpanded(t.Id) ? "Hide ▾" : "Show ▸")
-                            </button>
+                            @if (!IsTaskEditing(t.Id) && IsTaskExpanded(t.Id))
+                            {
+                                <button class="btn btn-outline-secondary" @onclick="() => OpenEditTask(t)">Edit</button>
+                            }
+                            @if (!IsTaskEditing(t.Id))
+                            {
+                                <button class="btn btn-outline-secondary" @onclick="() => ToggleTask(t.Id)">
+                                    @(IsTaskExpanded(t.Id) ? "Hide ▾" : "Show ▸")
+                                </button>
+                            }
                         </div>
                     </div>
 
-                    @if (IsTaskExpanded(t.Id))
+                    @if (IsTaskExpanded(t.Id) && !IsTaskEditing(t.Id))
                     {
                         <hr class="mt-3" />
-                        <div class="d-flex justify-content-between align-items-center">
+                        <div class="d-flex justify-content-between">
                             <div class="fw-semibold">Sub tasks:</div>
-                            <div class="d-flex gap-2">
+                            <div class="d-flex gap-2 mr-4">
                                 <input class="form-control form-control-sm" style="width:240px" placeholder="New subtask title"
-                                       @bind="newSubTaskTitle[t.Id]" />
-                                <button class="btn btn-sm btn-outline-primary" @onclick="@(() => AddSubTask(t.Id))" >Add</button>
+                                       @bind="newSubTaskTitle[t.Id]" @bind:event="oninput" />
+                                <button class="btn btn-sm btn-outline-primary"
+                                        @onclick="@(() => AddSubTask(t.Id))"
+                                        disabled="@(!newSubTaskTitle.ContainsKey(t.Id) || string.IsNullOrWhiteSpace(newSubTaskTitle[t.Id]))">
+                                    Add
+                                </button>
                             </div>
                         </div>
 
@@ -127,11 +205,11 @@ else
                             <ul id="subtasks-@t.Id" class="list-group list-group-flush mt-2">
                                 @foreach (var st in t.SubTasks.OrderBy(s => s.Order))
                                 {
-                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <li class="list-group-item d-flex justify-content-between">
                                         <div class="d-flex align-items-center gap-2">
                                             <input type="checkbox"
                                                    checked="@st.IsDone"
-                                                   @onchange="() => ToggleSubTask(t.Id, st.Id)" />
+                                                   @onchange="() => SubTaskItemService.ToggleSubTaskAsync(t.Id, st.Id)" />
                                             <span>@st.Title</span>
                                         </div>
                                         <button class="btn btn-sm btn-outline-danger" @onclick="@(() => DeleteSubTask(st.Id))" >Delete</button>
@@ -161,13 +239,12 @@ else
     private List<TaskItem> tasks = new();
 
     private bool isLoading = true;
-    private string? message;
     private string? error;
 
 
 
     private NewTaskModel newTask = new();
-    
+
     private sealed class NewTaskModel
     {
         [Required, StringLength(200)]
@@ -177,9 +254,33 @@ else
         public DateTime? DueDate { get; set; }
     }
 
-    private readonly Dictionary<int, string> newSubTaskTitle = new();
+    // Edit project fields
+    private bool isEditingProject = false;
+    private ProjectEditModel editProject = new();
 
-    
+    private sealed class ProjectEditModel
+    {
+        [Required, StringLength(200)]
+        public string? Name { get; set; }
+        [StringLength(1000)]
+        public string? Description { get; set; }
+    }
+
+    // Edit task fields
+    private sealed class EditTaskModel
+    {
+        [Required, StringLength(200)]
+        public string? Title { get; set; }
+        [StringLength(2000)]
+        public string? Description { get; set; }
+        public DateTime? DueDate { get; set; }
+    }
+
+    private readonly Dictionary<int, string> newSubTaskTitle = new(); // if creating multiple subtask simultaneously
+
+    // Track which tasks are being edited and their models
+    private readonly HashSet<int> editingTaskIds = new();
+    private readonly Dictionary<int, EditTaskModel> editTasks = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -191,11 +292,14 @@ else
     {
         project = await ProjectService.GetProjectByIdAsync(projectId);
         tasks = project?.Tasks?.ToList() ?? new List<TaskItem>();
-        foreach (var t in tasks) newSubTaskTitle.TryAdd(t.Id, string.Empty);
+        foreach (var t in tasks)
+        {
+            newSubTaskTitle.TryAdd(t.Id, string.Empty);
+            if (!editTasks.ContainsKey(t.Id))
+                editTasks[t.Id] = new EditTaskModel { Title = t.Title, Description = t.Description, DueDate = t.DueDate };
+        }
         StateHasChanged();
     }
-
-    
 
     private async Task CreateTaskAsync()
     {
@@ -221,7 +325,6 @@ else
             newTask = new();
             ToggleCard = new EditContext(newTask); // reset validation state
             await ReloadAsync();
-            message = "Task added.";
         }
         catch (Exception ex)
         {
@@ -235,7 +338,6 @@ else
         {
             if (project is null) return;
             await ProjectService.DeleteProjectAsync(project);
-            message = "Project deleted.";
             // navigate away after deletion
             NavigationManager.NavigateTo("/admin/projects");
         }
@@ -251,7 +353,6 @@ else
         {
             await TaskItemService.DeleteTask(taskId);
             await ReloadAsync();
-            message = "Task deleted.";
         }
         catch (Exception ex)
         {
@@ -263,33 +364,14 @@ else
     {
         try
         {
-            if (!newSubTaskTitle.TryGetValue(taskId, out var title) || string.IsNullOrWhiteSpace(title))
-            {
-                error = "Subtask title is required.";
-                return;
-            }
-
-            await SubTaskItemService.CreateAsync(taskId, title.Trim());
+            newSubTaskTitle.TryGetValue(taskId, out var title);
+            await SubTaskItemService.CreateAsync(taskId, title);
             newSubTaskTitle[taskId] = string.Empty;
             await ReloadAsync();
-            message = "Subtask added.";
         }
         catch (Exception ex)
         {
             error = $"Error adding subtask: {ex.Message}";
-        }
-    }
-
-    private async Task ToggleSubTask(int taskId, int subTaskId)
-    {
-        try
-        {
-            await TaskItemService.ToggleSubTaskAsync(taskId, subTaskId);
-            await ReloadAsync();
-        }
-        catch (Exception ex)
-        {
-            error = $"Error toggling subtask: {ex.Message}";
         }
     }
 
@@ -299,7 +381,6 @@ else
         {
             await SubTaskItemService.DeleteAsync(subTaskId);
             await ReloadAsync();
-            message = "Subtask deleted.";
         }
         catch (Exception ex)
         {
@@ -307,9 +388,50 @@ else
         }
     }
 
-    
+    // Task editing
+    private bool IsTaskEditing(int taskId) => editingTaskIds.Contains(taskId);
 
+    private void OpenEditTask(TaskItem t)
+    {
+        editTasks[t.Id] = new EditTaskModel { Title = t.Title, Description = t.Description, DueDate = t.DueDate };
+        editingTaskIds.Add(t.Id);
+        expandedTaskIds.Add(t.Id);
+    }
 
+    private void CancelEditTask(int taskId)
+    {
+        var t = tasks.FirstOrDefault(x => x.Id == taskId);
+        if (t is not null)
+            editTasks[taskId] = new EditTaskModel { Title = t.Title, Description = t.Description };
+        editingTaskIds.Remove(taskId);
+    }
+
+    private async Task UpdateTask(int taskId)
+    {
+        try
+        {
+            if (!editTasks.TryGetValue(taskId, out var model) || string.IsNullOrWhiteSpace(model.Title))
+            {
+                error = "Title is required.";
+                return;
+            }
+
+            await TaskItemService.UpdateTask(
+                taskId,
+                model.Title.Trim(),
+                string.IsNullOrWhiteSpace(model.Description) ? null : model.Description.Trim(),
+                model.DueDate
+            );
+
+            editingTaskIds.Remove(taskId);
+            error = null;
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error updating task: {ex.Message}";
+        }
+    }
 
     // Toggles Tasks cards
     private readonly HashSet<int> expandedTaskIds = new();
@@ -348,4 +470,54 @@ else
         ToggleCard = new EditContext(newTask); // clears validation messages
         IsExpanded = false;
     }
+
+    // Project edit
+    private async Task UpdateProject()
+    {
+        try
+        {
+            if (project is null) return;
+
+            project.Name = editProject.Name!.Trim();
+            project.Description = string.IsNullOrWhiteSpace(editProject.Description)
+                ? null
+                : editProject.Description!.Trim();
+
+            await ProjectService.UpdateProjectAsync(project);
+            isEditingProject = false;
+            error = null;
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error saving project: {ex.Message}";
+        }
+    }
+
+    private void OpenEditProject()
+    {
+        if (project is null) return;
+        editProject = new ProjectEditModel
+        {
+            Name = project.Name,
+            Description = project.Description
+        };
+        ProjectEditContext = new EditContext(editProject);
+        isEditingProject = true;
+    }
+
+    private void CancelEditProject()
+    {
+        if (project is null) return;
+        editProject = new ProjectEditModel
+        {
+            Name = project.Name,
+            Description = project.Description
+        };
+        ProjectEditContext = new EditContext(editProject); // clears validation messages
+        isEditingProject = false;
+    }
+
+    // Edit context for project edit form
+    private EditContext? ProjectEditContext;
 }

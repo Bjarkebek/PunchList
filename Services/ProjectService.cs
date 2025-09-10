@@ -30,9 +30,19 @@ namespace PunchList.Services
             await _db.SaveChangesAsync();
         }
 
+        // Only update fields on the tracked entity to avoid attaching a second instance.
         public async Task UpdateProjectAsync(Project project)
         {
-            _db.Projects.Update(project);
+            var existing = await _db.Projects.FirstOrDefaultAsync(p => p.Id == project.Id);
+            if (existing is null)
+            {
+                // Optionally throw or no-op
+                return;
+            }
+
+            existing.Name = project.Name;
+            existing.Description = project.Description;
+
             await _db.SaveChangesAsync();
         }
 

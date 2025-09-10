@@ -30,6 +30,17 @@ namespace PunchList.Services
             return taskItem;
         }
 
+        public async Task UpdateTask(int id, string title, string? description, DateTime? dueDate)
+        {
+            var t = await _db.TaskItems.FindAsync(id);
+            if (t is null) return;
+
+            t.Title = title;
+            t.Description = string.IsNullOrWhiteSpace(description) ? null : description;
+            t.DueDate = dueDate;
+            await _db.SaveChangesAsync();
+        }
+
         public async Task DeleteTask(int id)
         {
             var t = await _db.TaskItems.FindAsync(id);
@@ -55,14 +66,6 @@ namespace PunchList.Services
             t.Status = PunchList.Models.TaskStatus.InProgress;
             t.CompletedByUserId = null;
             t.CompletedAt = null;
-            await _db.SaveChangesAsync();
-        }
-
-        public async Task ToggleSubTaskAsync(int taskItemId, int subTaskId)
-        {
-            var st = await _db.SubTaskItems.FirstOrDefaultAsync(x => x.Id == subTaskId && x.TaskItemId == taskItemId);
-            if (st is null) return;
-            st.IsDone = !st.IsDone;
             await _db.SaveChangesAsync();
         }
     }
