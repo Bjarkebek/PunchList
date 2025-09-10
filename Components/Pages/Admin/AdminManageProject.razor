@@ -4,11 +4,16 @@
 @using PunchList.Services
 @using PunchList.Models
 @using System.ComponentModel.DataAnnotations
-@attribute [Authorize(Roles = "Admin")]
 @inject IProjectService ProjectService
 @inject ITaskItemService TaskItemService
-@inject ISubTaskItemService SubTaskService
+@inject ISubTaskItemService SubTaskItemService
 @inject Microsoft.AspNetCore.Components.NavigationManager NavigationManager
+@attribute [Authorize(Roles = "Admin")]
+
+<div class="mt-3">
+    <a class="btn btn-outline-secondary" href="/admin/projects">← Back </a>
+</div>
+
 
 @if (isLoading)
 {
@@ -28,7 +33,7 @@ else
                 <div class="text-muted">@project.Description</div>
             }
         </div>
-        <button class="btn btn-outline-danger" @onclick="DeleteProject" disabled="@busy">Delete Project</button>
+        <button class="btn btn-outline-danger" @onclick="DeleteProject" >Delete Project</button>
     </div>
     <hr />
 
@@ -42,16 +47,18 @@ else
     }
 
     <div class="card mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center" @onclick="ToggleAddTaskBox" style="cursor:pointer;">
+        <div class="card-header d-flex justify-content-between align-items-center" style="cursor:pointer;">
             <span class="fw-semibold">Add Task</span>
-            <button class="btn btn-sm btn-outline-secondary" @onclick:stopPropagation="true" @onclick="ToggleAddTaskBox" disabled="@busy">
-                @(showAddTask ? "Close ▾" : "Open ▸")
+            <button class="btn btn-sm btn-outline-secondary" 
+                @onclick:stopPropagation="true" 
+                @onclick="ToggleCardBox">
+                @(IsExpanded ? "Close ▾" : "Open ▸")
             </button>
         </div>
         <div class="card-body">
-            @if (showAddTask)
+            @if (IsExpanded)
             {
-                <EditForm EditContext="@createTaskEditContext" OnValidSubmit="@CreateTaskAsync">
+                <EditForm EditContext="@ToggleCard" OnValidSubmit="@CreateTaskAsync">
                     <DataAnnotationsValidator />
                     <div class="row g-2">
                         <div class="col-md-4">
@@ -69,8 +76,8 @@ else
                         </div>
                     </div>
                     <div class="mt-2 d-flex gap-2">
-                        <button class="btn btn-primary" type="submit" disabled="@busy">Add Task</button>
-                        <button class="btn btn-outline-secondary" type="button" @onclick="CancelAddTask" disabled="@busy">Cancel</button>
+                        <button class="btn btn-primary" type="submit" >Add Task</button>
+                        <button class="btn btn-outline-secondary" type="button" @onclick="CancelAddTask" >Cancel</button>
                     </div>
                 </EditForm>
             }
@@ -97,18 +104,13 @@ else
                         </div>
                         <div class="d-flex align-items-center gap-2">
                             <span class="badge @(t.Status == PunchList.Models.TaskStatus.Completed ? "status-completed" : t.Status == PunchList.Models.TaskStatus.InProgress ? "status-inprogress" : "status-new")">@t.Status</span>
-
-                            <button class="btn btn-outline-secondary"
-                                    @onclick="() => ToggleTask(t.Id)"
-                                    aria-expanded="@IsExpanded(t.Id)"
-                                    aria-controls="subtasks-@t.Id"
-                                    title="Toggle subtasks">
-                                @(IsExpanded(t.Id) ? "Hide ▾" : "Show ▸")
+                            <button class="btn btn-outline-secondary" @onclick="() => ToggleTask(t.Id)">
+                                @(IsTaskExpanded(t.Id) ? "Hide ▾" : "Show ▸")
                             </button>
                         </div>
                     </div>
 
-                    @if (IsExpanded(t.Id))
+                    @if (IsTaskExpanded(t.Id))
                     {
                         <hr class="mt-3" />
                         <div class="d-flex justify-content-between align-items-center">
@@ -116,7 +118,7 @@ else
                             <div class="d-flex gap-2">
                                 <input class="form-control form-control-sm" style="width:240px" placeholder="New subtask title"
                                        @bind="newSubTaskTitle[t.Id]" />
-                                <button class="btn btn-sm btn-outline-primary" @onclick="@(() => AddSubTask(t.Id))" disabled="@busy">Add</button>
+                                <button class="btn btn-sm btn-outline-primary" @onclick="@(() => AddSubTask(t.Id))" >Add</button>
                             </div>
                         </div>
 
@@ -132,7 +134,7 @@ else
                                                    @onchange="() => ToggleSubTask(t.Id, st.Id)" />
                                             <span>@st.Title</span>
                                         </div>
-                                        <button class="btn btn-sm btn-outline-danger" @onclick="@(() => DeleteSubTask(st.Id))" disabled="@busy">Delete</button>
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="@(() => DeleteSubTask(st.Id))" >Delete</button>
                                     </li>
                                 }
                             </ul>
@@ -143,7 +145,7 @@ else
                         }
 
                         <div class="d-flex gap-2 mt-4">
-                            <button class="btn btn-sm btn-outline-danger" @onclick="@(() => DeleteTask(t.Id))" disabled="@busy">Delete Task</button>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="@(() => DeleteTask(t.Id))" >Delete Task</button>
                         </div>
                     }
                 </div>
@@ -159,17 +161,25 @@ else
     private List<TaskItem> tasks = new();
 
     private bool isLoading = true;
-    private bool busy = false;
     private string? message;
     private string? error;
 
+
+
     private NewTaskModel newTask = new();
-    private EditContext? createTaskEditContext;
-    private bool showAddTask = false;
+    
+    private sealed class NewTaskModel
+    {
+        [Required, StringLength(200)]
+        public string? Title { get; set; }
+        [StringLength(2000)]
+        public string? Description { get; set; }
+        public DateTime? DueDate { get; set; }
+    }
 
     private readonly Dictionary<int, string> newSubTaskTitle = new();
 
-    private readonly HashSet<int> expandedTaskIds = new();
+    
 
     protected override async Task OnInitializedAsync()
     {
@@ -185,51 +195,10 @@ else
         StateHasChanged();
     }
 
-    private bool IsExpanded(int taskId) => expandedTaskIds.Contains(taskId);
-
-    private void ToggleTask(int taskId)
-    {
-        if (!expandedTaskIds.Remove(taskId))
-            expandedTaskIds.Add(taskId);
-    }
-
-    private void ToggleAddTaskBox()
-    {
-        if (busy) return;
-
-        if (showAddTask)
-        {
-            CancelAddTaskInternal();
-        }
-        else
-        {
-            OpenAddTaskInternal();
-        }
-    }
-
-    private void CancelAddTask()
-    {
-        if (busy) return;
-        CancelAddTaskInternal();
-    }
-
-    private void OpenAddTaskInternal()
-    {
-        showAddTask = true;
-        createTaskEditContext = new EditContext(newTask);
-    }
-
-    private void CancelAddTaskInternal()
-    {
-        newTask = new();
-        createTaskEditContext = new EditContext(newTask); // clears validation messages
-        showAddTask = false;
-    }
+    
 
     private async Task CreateTaskAsync()
     {
-        if (busy) return;
-        busy = true; message = error = null;
         try
         {
             var ti = new TaskItem
@@ -250,7 +219,7 @@ else
             }
 
             newTask = new();
-            createTaskEditContext = new EditContext(newTask); // reset validation state
+            ToggleCard = new EditContext(newTask); // reset validation state
             await ReloadAsync();
             message = "Task added.";
         }
@@ -258,16 +227,10 @@ else
         {
             error = $"Error adding task: {ex.Message}";
         }
-        finally
-        {
-            busy = false;
-        }
     }
 
     private async Task DeleteProject()
     {
-        if (busy) return;
-        busy = true; message = error = null;
         try
         {
             if (project is null) return;
@@ -280,16 +243,10 @@ else
         {
             error = $"Error deleting project: {ex.Message}";
         }
-        finally
-        {
-            busy = false;
-        }
     }
 
     private async Task DeleteTask(int taskId)
     {
-        if (busy) return;
-        busy = true; message = error = null;
         try
         {
             await TaskItemService.DeleteTask(taskId);
@@ -300,16 +257,10 @@ else
         {
             error = $"Error deleting task: {ex.Message}";
         }
-        finally
-        {
-            busy = false;
-        }
     }
 
     private async Task AddSubTask(int taskId)
     {
-        if (busy) return;
-        busy = true; message = error = null;
         try
         {
             if (!newSubTaskTitle.TryGetValue(taskId, out var title) || string.IsNullOrWhiteSpace(title))
@@ -318,7 +269,7 @@ else
                 return;
             }
 
-            await SubTaskService.CreateAsync(taskId, title.Trim());
+            await SubTaskItemService.CreateAsync(taskId, title.Trim());
             newSubTaskTitle[taskId] = string.Empty;
             await ReloadAsync();
             message = "Subtask added.";
@@ -326,10 +277,6 @@ else
         catch (Exception ex)
         {
             error = $"Error adding subtask: {ex.Message}";
-        }
-        finally
-        {
-            busy = false;
         }
     }
 
@@ -348,11 +295,9 @@ else
 
     private async Task DeleteSubTask(int subTaskId)
     {
-        if (busy) return;
-        busy = true; message = error = null;
         try
         {
-            await SubTaskService.DeleteAsync(subTaskId);
+            await SubTaskItemService.DeleteAsync(subTaskId);
             await ReloadAsync();
             message = "Subtask deleted.";
         }
@@ -360,18 +305,47 @@ else
         {
             error = $"Error deleting subtask: {ex.Message}";
         }
-        finally
-        {
-            busy = false;
-        }
     }
 
-    private sealed class NewTaskModel
+    
+
+
+
+    // Toggles Tasks cards
+    private readonly HashSet<int> expandedTaskIds = new();
+
+    private bool IsTaskExpanded(int taskId) => expandedTaskIds.Contains(taskId);
+
+    private void ToggleTask(int taskId)
     {
-        [Required, StringLength(200)]
-        public string? Title { get; set; }
-        [StringLength(2000)]
-        public string? Description { get; set; }
-        public DateTime? DueDate { get; set; }
+        if (!expandedTaskIds.Remove(taskId))
+            expandedTaskIds.Add(taskId);
+    }
+
+
+    // Toggles Card
+    private EditContext? ToggleCard;
+
+    private bool IsExpanded = false;
+
+    private void ToggleCardBox()
+    {
+        if (IsExpanded)
+            CancelAddTask();
+        else
+            OpenAddTask();
+    }
+
+    private void OpenAddTask()
+    {
+        IsExpanded = true;
+        ToggleCard = new EditContext(newTask);
+    }
+
+    private void CancelAddTask()
+    {
+        newTask = new();
+        ToggleCard = new EditContext(newTask); // clears validation messages
+        IsExpanded = false;
     }
 }

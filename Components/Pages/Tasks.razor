@@ -6,18 +6,26 @@
 @using PunchList.Services
 @using Microsoft.AspNetCore.Components.Authorization
 @using System.Security.Claims
+@using Microsoft.AspNetCore.Identity
+@inject IProjectService ProjectService
+@inject ITaskItemService TaskItemService
+@inject ISubTaskItemService SubTaskItemService
+@inject UserManager<ApplicationUser> UserManager
 @attribute [Authorize]
-@inject ApplicationDbContext Db
 
-<h3 class="mt-5">All Tasks</h3>
+<div class="mt-3">
+    <a class="btn btn-outline-secondary" href="/dashboard">← Back </a>
+</div>
+
+<h3 class="mt-3">All Tasks</h3>
 <hr class="mb-4" />
 
 <div class="card mb-5">
     <div class="card-body row g-2 align-items-end">
         <div class="col-md-4">
-            <label class="form-label">Project</label>
+            <h4 class="form-label mb-3">Projects</h4>
             <select class="form-select" @bind="SelectedProjectId">
-                <option value="">Show all</option>
+                <option value="" class="text-muted">Show all</option>
                 @foreach (var p in projects)
                 {
                     <option value="@p.Id">@p.Name</option>
@@ -33,7 +41,6 @@
 }
 else if (tasks.Count == 0)
 {
-
     <p class="text-muted">No tasks.</p>
 }
 else
@@ -44,61 +51,81 @@ else
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start">
                     <div class="me-3">
-                        <div class="fw-semibold">@t.Title</div>
+                        <h4 class="fw-normal d-inline">@t.Title</h4>
+                        <span class="text-muted small ms-2">@GetProjectName(t.ProjectId)</span>
+                        <hr class="mt-1"/>
                         @if (!string.IsNullOrWhiteSpace(t.Description))
                         {
-                            <div class="text-muted small">@t.Description</div>
+                            <h5 class="text-muted small mt-2">@t.Description</h5>
                         }
-                        <div class="small text-muted">[Project @t.ProjectId]</div>
+                        @if (t.DueDate.HasValue)
+                        {
+                            <span class="text-muted small">Due: @t.DueDate.Value.ToShortDateString()</span>
+                        }
                     </div>
-                    <span class="badge @(t.Status == PunchList.Models.TaskStatus.Completed ? "status-completed" : t.Status == PunchList.Models.TaskStatus.InProgress ? "status-inprogress" : "status-new")">@t.Status</span>
+                    <div class="d-flex align-items-center gap-2">
+                        <button class="btn btn-outline-secondary"
+                                @onclick="() => ToggleTask(t.Id)">
+                            @(IsTaskExpanded(t.Id) ? "Hide ▾" : "Show ▸")
+                        </button>
+                    </div>
                 </div>
 
-                @if (t.SubTasks?.Any() == true)
+                @if (IsTaskExpanded(t.Id))
                 {
-                    <ul class="list-group list-group-flush mt-2">
-                        @foreach (var st in t.SubTasks.OrderBy(s => s.Order))
+                    <hr class="mt-3" />
+                    <div class="fw-semibold">Sub tasks:</div>
+                    <ul id="subtasks-@t.Id" class="list-group list-group-flush mt-2">
+                        @if (t.SubTasks?.Any() == true)
                         {
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                <span>@st.Title</span>
-                                <input type="checkbox"
-                                       @bind="st.IsDone"
-                                       @bind:after="async () => await subTaskItemService.UpdateAsync(st.Id, isDone: st.IsDone)" />
-                            </li>
+                            @foreach (var st in t.SubTasks.OrderBy(s => s.Order))
+                            {
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>@st.Title</span>
+                                    <input type="checkbox"
+                                           @bind="st.IsDone"
+                                           @bind:after="async () => await SubTaskItemService.UpdateAsync(st.Id, isDone: st.IsDone)" />
+                                </li>
+                            }
+                        }
+                        else
+                        {
+                            <span>No Subtasks</span>
                         }
                     </ul>
-                }
 
-                <div class="d-flex gap-2 mt-2">
-                    @if (t.Status != PunchList.Models.TaskStatus.Completed)
+                    <div class="d-flex gap-2 mt-4">
+                        @if (t.Status != PunchList.Models.TaskStatus.Completed)
+                        {
+                            <button class="btn btn-sm btn-success"
+                                    disabled="@(!CanComplete(t) || string.IsNullOrEmpty(userId))"
+                                    @onclick="() => CompleteAsync(t)">
+                                ✓ Complete
+                            </button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-sm btn-secondary" @onclick="() => ReopenAsync(t)">↺ Reopen</button>
+                        }
+                    </div>
+
+                    @if (t.Status == PunchList.Models.TaskStatus.Completed)
                     {
-                        <button class="btn btn-sm btn-success"
-                                disabled="@(!CanComplete(t) || string.IsNullOrEmpty(userId))"
-                                @onclick="async () => await taskItemService.CompleteTask(t.Id, userId)">
-                            ✓ Complete
-                        </button>
+                        <div class="mt-2 small text-muted">
+                            <span>completed by user: @GetCompletedByName(t.CompletedByUserId)</span>
+                            @if (t.CompletedAt is not null)
+                            {
+                                <span> on @t.CompletedAt.Value.ToShortDateString()</span>
+                            }
+                        </div>
                     }
-                    else
-                    {
-                        <button class="btn btn-sm btn-secondary" @onclick="() => taskItemService.ReopenTask(t.Id)">↺ Reopen</button>
-                    }
-                    <AuthorizeView Roles="Admin">
-                        <button class="btn btn-sm btn-outline-danger" @onclick="() => taskItemService.DeleteTask(t.Id)">Delete</button>
-                    </AuthorizeView>
-                </div>
+                }
             </div>
         </div>
     }
 }
 
 @code {
-    [Inject]
-    public ITaskItemService taskItemService { get; set; }
-    [Inject]
-    public ISubTaskItemService subTaskItemService { get; set; }
-    [Inject]
-    public IProjectService projectService { get; set; }
-
     [CascadingParameter]
     public Task<AuthenticationState> AuthenticationStateTask { get; set; } = default!;
 
@@ -108,16 +135,7 @@ else
 
     string? userId;
 
-    string? _selectedProjectId;
-    string? SelectedProjectId
-    {
-        get => _selectedProjectId;
-        set
-        {
-            _selectedProjectId = value;
-            ApplyFilter();
-        }
-    }
+    
 
     protected override async Task OnInitializedAsync()
     {
@@ -125,26 +143,48 @@ else
         var authState = await AuthenticationStateTask;
         userId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
-        projects = await projectService.GetProjectsAsync();
-        allTasks = await taskItemService.LoadTasks();
-        ApplyFilter();
+        projects = await ProjectService.GetProjectsAsync();
+
+        projectNames.Clear();
+        foreach (var p in projects)
+            projectNames[p.Id] = p.Name;
+
+        allTasks = await TaskItemService.LoadTasks();
+        await ApplyFilterAsync();
     }
 
-    void ApplyFilter()
+
+    private async Task ReloadTasksAsync()
     {
-        if (allTasks is null)
+        allTasks = await TaskItemService.LoadTasks();
+        await ApplyFilterAsync();
+    }
+
+
+
+
+    // Selected project for filtering
+    string? _selectedProjectId;
+    string? SelectedProjectId
+    {
+        get => _selectedProjectId;
+        set
         {
-            tasks = null; // still loading
-            return;
+            _selectedProjectId = value;
+            _ = InvokeAsync(ApplyFilterAsync);
         }
+    }
+
+
+
+    private async Task ApplyFilterAsync()
+    {
 
         if (string.IsNullOrWhiteSpace(SelectedProjectId))
         {
             tasks = allTasks.ToList();
-            return;
         }
-
-        if (int.TryParse(SelectedProjectId, out var pid))
+        else if (int.TryParse(SelectedProjectId, out var pid))
         {
             tasks = allTasks.Where(t => t.ProjectId == pid).ToList();
         }
@@ -152,8 +192,73 @@ else
         {
             tasks = new List<TaskItem>();
         }
+
+        // Populate user display names for completed tasks
+        completedByNames.Clear();
+        var ids = tasks
+            .Where(t => !string.IsNullOrEmpty(t.CompletedByUserId))
+            .Select(t => t.CompletedByUserId!)
+            .Distinct()
+            .ToList();
+
+        foreach (var id in ids)
+        {
+            var user = await UserManager.FindByIdAsync(id);
+            var name = user is null
+                ? id
+                : (string.IsNullOrWhiteSpace(user.DisplayName) ? (user.UserName ?? id) : user.DisplayName);
+            completedByNames[id] = name;
+        }
+
+        StateHasChanged();
     }
+
+    
+
+    // CompletedBy- and Project-name
+    private readonly Dictionary<string, string> completedByNames = new();
+    private readonly Dictionary<int, string> projectNames = new();
+
+    private string GetCompletedByName(string? id)
+        => (completedByNames.TryGetValue(id, out var n) ? n : "Unknown");
+
+    private string GetProjectName(int projectId)
+        => projectNames.TryGetValue(projectId, out var name) ? name : $"Project {projectId}";
+
+
+
+
 
     // A task can be completed only when it has no subtasks or all subtasks are done.
     bool CanComplete(TaskItem t) => t.SubTasks?.All(s => s.IsDone) ?? true;
+
+    private async Task CompleteAsync(TaskItem t)
+    {
+        if (string.IsNullOrEmpty(userId)) return;
+        await TaskItemService.CompleteTask(t.Id, userId);
+        await ReloadTasksAsync();
+    }
+
+    private async Task ReopenAsync(TaskItem t)
+    {
+        await TaskItemService.ReopenTask(t.Id);
+        await ReloadTasksAsync();
+    }
+
+    
+
+
+
+
+
+    // Toggle state per task
+    private readonly HashSet<int> expandedTaskIds = new();
+
+    private bool IsTaskExpanded(int taskId) => expandedTaskIds.Contains(taskId);
+
+    private void ToggleTask(int taskId)
+    {
+        if (!expandedTaskIds.Remove(taskId))
+            expandedTaskIds.Add(taskId);
+    }
 }

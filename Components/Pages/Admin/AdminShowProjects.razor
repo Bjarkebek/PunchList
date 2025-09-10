@@ -4,22 +4,28 @@
 @using PunchList.Models
 @using System.ComponentModel.DataAnnotations
 @using Microsoft.AspNetCore.Components.Forms
-@attribute [Authorize(Roles = "Admin")]
 @inject IProjectService ProjectService
-@inject ITaskItemService TaskItemService
+@attribute [Authorize(Roles = "Admin")]
 
-<h3 class="mt-5">All Projects</h3>
+<div class="mt-3">
+    <a class="btn btn-outline-secondary" href="/admin">← Back </a>
+</div>
+
+<h3 class="mt-3">All Projects</h3>
 <hr class="mb-4" />
 
 <div class="card mb-4">
-    <div class="card-header d-flex justify-content-between align-items-center" @onclick="ToggleCreateBox" style="cursor:pointer;">
-        <span class="fw-semibold">Create Project and Tasks</span>
-        <button class="btn btn-sm btn-outline-secondary" @onclick:stopPropagation="true" @onclick="ToggleCreateBox" disabled="@busy">
-            @(showCreateProject ? "Close ▾" : "Open ▸")
+    <div class="card-header d-flex justify-content-between align-items-center" style="cursor:pointer;">
+        <span class="fw-semibold">Create Project</span>
+        <button class="btn btn-sm btn-outline-secondary" 
+        @onclick:stopPropagation="true" 
+        @onclick="ToggleCreateBox" 
+        >
+            @(IsExpanded ? "Close ▾" : "Open ▸")
         </button>
     </div>
     <div class="card-body">
-        @if (showCreateProject)
+        @if (IsExpanded)
         {
             @if (!string.IsNullOrWhiteSpace(message))
             {
@@ -30,51 +36,20 @@
                 <div class="alert alert-danger py-1">@error</div>
             }
 
-            <EditForm EditContext="@createProjectEditContext" OnValidSubmit="@CreateProjectAndTasks">
+            <EditForm EditContext="@ToggleCard" OnValidSubmit="@CreateProject">
                 <DataAnnotationsValidator />
                 <div class="mb-2">
                     <label class="form-label">Project name</label>
-                    <InputText class="form-control form-control-sm" @bind-Value="projectCreate.Name" />
-                    <ValidationMessage For="@(() => projectCreate.Name)" />
+                    <InputText class="form-control form-control-sm" @bind-Value="newProject.Name" />
+                    <ValidationMessage For="@(() => newProject.Name)" />
                 </div>
                 <div class="mb-2">
                     <label class="form-label">Project description</label>
-                    <InputTextArea class="form-control form-control-sm" rows="2" @bind-Value="projectCreate.Description" />
+                    <InputTextArea class="form-control form-control-sm" rows="2" @bind-Value="newProject.Description" />
                 </div>
-
-                <div class="border-top pt-2 mb-2">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <label class="form-label mb-0">Initial tasks</label>
-                        <button class="btn btn-sm btn-outline-secondary" type="button" @onclick="AddTaskRow" disabled="@busy">+ Task</button>
-                    </div>
-                    @if (taskRows.Count == 0)
-                    {
-                        <div class="text-muted small">No initial tasks. You can add them later.</div>
-                    }
-                    else
-                    {
-                        @for (int i = 0; i < taskRows.Count; i++)
-                        {
-                            <div class="card card-body p-2 mb-2">
-                                <div class="d-flex gap-2">
-                                    <InputText class="form-control form-control-sm" placeholder="Title"
-                                               @bind-Value="taskRows[i].Title" />
-                                    <button class="btn btn-sm btn-outline-danger" type="button" title="Remove" @onclick="@(() => RemoveTaskRow(i))">✕</button>
-                                </div>
-                                <InputTextArea class="form-control form-control-sm mt-1" rows="2" placeholder="Description (optional)"
-                                               @bind-Value="taskRows[i].Description" />
-                                <div class="mt-1">
-                                    <InputDate class="form-control form-control-sm"
-                                               @bind-Value="taskRows[i].DueDate" />
-                                </div>
-                            </div>
-                        }
-                    }
-                </div>
-
-                <div class="d-flex gap-2">
-                    <button class="btn btn-sm btn-primary" type="submit" disabled="@busy">Create</button>
-                    <button class="btn btn-sm btn-outline-secondary" type="button" @onclick="CancelCreate" disabled="@busy">Cancel</button>
+                <div class="d-flex gap-2 mt-3">
+                    <button class="btn btn-sm btn-primary" type="submit" >Create</button>
+                    <button class="btn btn-sm btn-outline-secondary" type="button" @onclick="CancelCreate" >Cancel</button>
                 </div>
             </EditForm>
         }
@@ -112,8 +87,8 @@ else
                         <small class="text-muted">@done/@total completed</small>
                     </div>
                     <div class="card-footer d-flex gap-2">
-                        <a class="btn btn-sm btn-primary" href="/admin/projects/@p.Id">Manage</a>
-                        <a class="btn btn-sm btn-outline-secondary" href="/project/@p.Id">Open</a>
+                        <a class="btn btn-sm btn-primary mt-2 mb-2" href="/admin/projects/@p.Id">Manage</a>
+                        <a class="btn btn-sm btn-outline-secondary mt-2 mb-2" href="/project/@p.Id">Open</a>
                     </div>
                 </div>
             </div>
@@ -124,123 +99,10 @@ else
 @code {
     public List<Project>? Projects { get; set; }
 
-    private bool busy;
     private string? message;
     private string? error;
 
-    private NewProjectModel projectCreate = new();
-    private List<NewTaskModel> taskRows = new();
-
-    // show/hide create box pattern
-    private bool showCreateProject = false;
-    private EditContext? createProjectEditContext;
-
-    protected override async Task OnInitializedAsync()
-    {
-        Projects = await ProjectService.GetProjectsAsync();
-        createProjectEditContext = new EditContext(projectCreate);
-    }
-
-    private async Task ReloadAsync()
-    {
-        Projects = await ProjectService.GetProjectsAsync();
-        StateHasChanged();
-    }
-
-    private void ToggleCreateBox()
-    {
-        if (busy) return;
-
-        if (showCreateProject)
-            CancelCreateInternal();
-        else
-            OpenCreateInternal();
-    }
-
-    private void CancelCreate()
-    {
-        if (busy) return;
-        CancelCreateInternal();
-    }
-
-    private void OpenCreateInternal()
-    {
-        showCreateProject = true;
-        createProjectEditContext ??= new EditContext(projectCreate);
-    }
-
-    private void CancelCreateInternal()
-    {
-        projectCreate = new();
-        taskRows.Clear();
-        createProjectEditContext = new EditContext(projectCreate); // clears validation messages
-        showCreateProject = false;
-    }
-
-    private void AddTaskRow() => taskRows.Add(new NewTaskModel());
-    private void RemoveTaskRow(int index) => taskRows.RemoveAt(index);
-
-    private async Task CreateProjectAndTasks()
-    {
-        if (busy) return;
-        busy = true; message = error = null;
-
-        try
-        {
-            if (string.IsNullOrWhiteSpace(projectCreate.Name))
-            {
-                error = "Project name is required.";
-                return;
-            }
-
-            var p = new Project
-            {
-                Name = projectCreate.Name.Trim(),
-                Description = string.IsNullOrWhiteSpace(projectCreate.Description) ? null : projectCreate.Description.Trim(),
-                CreatedAt = DateTime.UtcNow
-            };
-
-            await ProjectService.AddProjectAsync(p);
-
-            // Add tasks if provided
-            foreach (var row in taskRows.Where(r => !string.IsNullOrWhiteSpace(r.Title)))
-            {
-                var ti = new TaskItem
-                {
-                    ProjectId = p.Id,
-                    Title = row.Title!.Trim(),
-                    Description = string.IsNullOrWhiteSpace(row.Description) ? null : row.Description!.Trim(),
-                    Status = PunchList.Models.TaskStatus.New,
-                    Order = 0,
-                    DueDate = row.DueDate
-                };
-
-                var created = await TaskItemService.CreateTask(ti);
-                if (created is null)
-                {
-                    error = "A task could not be created. Please try again.";
-                    break;
-                }
-            }
-
-            if (string.IsNullOrEmpty(error))
-            {
-                projectCreate = new();
-                taskRows.Clear();
-                createProjectEditContext = new EditContext(projectCreate); // reset validation state
-                message = "Project and tasks created.";
-                await ReloadAsync();
-            }
-        }
-        catch (Exception ex)
-        {
-            error = $"Failed to create project/tasks: {ex.Message}";
-        }
-        finally
-        {
-            busy = false;
-        }
-    }
+    private NewProjectModel newProject = new();
 
     private sealed class NewProjectModel
     {
@@ -249,18 +111,82 @@ else
         [StringLength(1000)]
         public string? Description { get; set; }
     }
+    
 
-    private sealed class NewTaskModel
+    protected override async Task OnInitializedAsync()
     {
-        [Required, StringLength(200)]
-        public string? Title { get; set; }
-        [StringLength(2000)]
-        public string? Description { get; set; }
-        public string? DueDateString
+        Projects = await ProjectService.GetProjectsAsync();
+        ToggleCard = new EditContext(newProject);
+    }
+
+    private async Task ReloadAsync()
+    {
+        Projects = await ProjectService.GetProjectsAsync();
+        StateHasChanged();
+    }     
+
+    private async Task CreateProject()
+    {
+        try
         {
-            get => DueDate?.ToString("yyyy-MM-dd");
-            set => DueDate = DateTime.TryParse(value, out var d) ? d : null;
+            if (string.IsNullOrWhiteSpace(newProject.Name))
+            {
+                error = "Project name is required.";
+                return;
+            }
+
+            var p = new Project
+            {
+                Name = newProject.Name.Trim(),
+                Description = string.IsNullOrWhiteSpace(newProject.Description) ? null : newProject.Description.Trim(),
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await ProjectService.AddProjectAsync(p);
+
+            
+
+            if (string.IsNullOrEmpty(error))
+            {
+                newProject = new();
+                ToggleCard = new EditContext(newProject); // reset validation state
+                message = "Project and tasks created.";
+                await ReloadAsync();
+            }
         }
-        public DateTime? DueDate { get; set; }
+        catch (Exception ex)
+        {
+            error = $"Failed to create project/tasks: {ex.Message}";
+        }
+    }
+
+    
+
+
+
+    // Toggles Card
+    private EditContext? ToggleCard;
+
+    private bool IsExpanded = false;
+
+    private void ToggleCreateBox()
+    {
+        if (IsExpanded)
+            CancelCreate();
+        else
+            OpenCreate();
+    }    
+
+    private void OpenCreate()
+    {
+        IsExpanded = true;
+        ToggleCard ??= new EditContext(newProject);
+    }
+
+    private void CancelCreate()
+    {
+        newProject = new();
+        ToggleCard = new EditContext(newProject); // clears validation messages
+        IsExpanded = false;
     }
 }

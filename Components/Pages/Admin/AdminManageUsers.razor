@@ -5,11 +5,15 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using System.ComponentModel.DataAnnotations
 @using PunchList.Data
-@attribute [Authorize(Roles = "Admin")]
 @inject UserManager<ApplicationUser> UserManager
 @inject RoleManager<IdentityRole> RoleManager
+@attribute [Authorize(Roles = "Admin")]
 
-<h3 class="mt-5">Manage Users</h3>
+<div class="mt-3">
+    <a class="btn btn-outline-secondary" href="/admin">← Back </a>
+</div>
+
+<h3 class="mt-3">Manage Users</h3>
 <hr class="mb-4" />
 
 @if (isLoading)
@@ -30,16 +34,18 @@ else
     <div class="row g-4">
         <div class="col-12">
             <div class="card h-100">
-                <div class="card-header d-flex justify-content-between align-items-center" @onclick="ToggleCreateBox" style="cursor:pointer;">
+                <div class="card-header d-flex justify-content-between align-items-center" style="cursor:pointer;">
                     <span class="fw-semibold">Create User</span>
-                    <button class="btn btn-sm btn-outline-secondary" @onclick:stopPropagation="true" @onclick="ToggleCreateBox" disabled="@busy">
-                        @(showCreateUser ? "Close ▾" : "Open ▸")
+                    <button class="btn btn-sm btn-outline-secondary" 
+                        @onclick:stopPropagation="true" 
+                        @onclick="ToggleCardBox">
+                        @(IsExpanded ? "Close ▾" : "Open ▸")
                     </button>
                 </div>
                 <div class="card-body">
-                    @if (showCreateUser)
+                    @if (IsExpanded)
                     {
-                        <EditForm EditContext="@createUserEditContext" OnValidSubmit="@CreateUserAsync">
+                        <EditForm EditContext="@ToggleCard" OnValidSubmit="@CreateUserAsync">
                             <DataAnnotationsValidator />
                             <div class="mb-2">
                                 <label class="form-label">User name</label>
@@ -61,8 +67,8 @@ else
                                 <label class="form-check-label">Admin</label>
                             </div>
                             <div class="d-flex gap-2">
-                                <button class="btn btn-primary" type="submit" disabled="@busy">Create</button>
-                                <button class="btn btn-outline-secondary" type="button" @onclick="CancelCreate" disabled="@busy">Cancel</button>
+                                <button class="btn btn-primary" type="submit" >Create</button>
+                                <button class="btn btn-outline-secondary" type="button" @onclick="CancelAddUser" >Cancel</button>
                             </div>
                         </EditForm>
                     }
@@ -74,7 +80,6 @@ else
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span class="fw-semibold">All Users</span>
-                    <button class="btn btn-sm btn-outline-secondary" @onclick="ReloadUsers" disabled="@busy">Reload</button>
                 </div>
                 <div class="card-body">
                     @if (users is null || users.Count == 0)
@@ -114,13 +119,13 @@ else
                                             <td class="text-nowrap">
                                                 @if (!isAdmin)
                                                 {
-                                                    <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => MakeAdmin(u)" disabled="@busy">Make Admin</button>
+                                                    <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => MakeAdmin(u)" >Make Admin</button>
                                                 }
                                                 else
                                                 {
-                                                    <button class="btn btn-sm btn-outline-warning me-1" @onclick="() => RemoveAdmin(u)" disabled="@(busy ? "disabled" : null)">Remove Admin</button>
+                                                    <button class="btn btn-sm btn-outline-warning me-1" @onclick="() => RemoveAdmin(u)">Remove Admin</button>
                                                 }
-                                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteUser(u)" disabled="@(busy ? "disabled" : null)">Delete</button>
+                                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteUser(u)">Delete</button>
                                             </td>
                                         </tr>
                                     }
@@ -138,7 +143,6 @@ else
     private const string AdminRole = "Admin";
     private const string UserRole = "User";
     private bool isLoading = true;
-    private bool busy = false;
     private string? message;
     private string? error;
 
@@ -148,8 +152,7 @@ else
     private string? currentUserId;
 
     private NewUserModel newUser = new();
-    private bool showCreateUser = false;
-    private EditContext? createUserEditContext;
+    
 
     protected override async Task OnInitializedAsync()
     {
@@ -195,30 +198,8 @@ else
         }
     }
 
-    private async Task ReloadUsers()
-    {
-        if (busy) return;
-        busy = true; message = error = null;
-        try
-        {
-            await LoadUsersAsync();
-            message = "Users reloaded.";
-        }
-        catch (Exception ex)
-        {
-            error = $"Failed to reload users: {ex.Message}";
-        }
-        finally
-        {
-            busy = false;
-        }
-    }
-
     private async Task CreateUserAsync()
     {
-        if (busy) return;
-        busy = true; message = error = null;
-
         try
         {
             var user = new ApplicationUser
@@ -260,7 +241,7 @@ else
             }
 
             newUser = new();
-            createUserEditContext = new EditContext(newUser); // reset validation state
+            ToggleCard = new EditContext(newUser); // reset validation state
             await LoadUsersAsync();
             message = addAdmin ? "User created and granted Admin." : "User created.";
         }
@@ -268,17 +249,10 @@ else
         {
             error = $"Failed to create user: {ex.Message}";
         }
-        finally
-        {
-            busy = false;
-        }
     }
 
     private async Task DeleteUser(ApplicationUser user)
     {
-        if (busy) return;
-        busy = true; message = error = null;
-
         try
         {
             var res = await UserManager.DeleteAsync(user);
@@ -295,17 +269,12 @@ else
         {
             error = $"Failed to delete user: {ex.Message}";
         }
-        finally
-        {
-            busy = false;
-        }
     }
+
+
 
     private async Task MakeAdmin(ApplicationUser user)
     {
-        if (busy) return;
-        busy = true; message = error = null;
-
         try
         {
             await EnsureRoleAsync(AdminRole);
@@ -322,17 +291,10 @@ else
         {
             error = $"Failed to grant Admin: {ex.Message}";
         }
-        finally
-        {
-            busy = false;
-        }
     }
 
     private async Task RemoveAdmin(ApplicationUser user)
     {
-        if (busy) return;
-        busy = true; message = error = null;
-
         try
         {
             var res = await UserManager.RemoveFromRoleAsync(user, AdminRole);
@@ -348,44 +310,8 @@ else
         {
             error = $"Failed to remove Admin: {ex.Message}";
         }
-        finally
-        {
-            busy = false;
-        }
-    }
+    }    
 
-    private void ToggleCreateBox()
-    {
-        if (busy) return;
-
-        if (showCreateUser)
-        {
-            CancelCreateInternal();
-        }
-        else
-        {
-            OpenCreateInternal();
-        }
-    }
-
-    private void CancelCreate()
-    {
-        if (busy) return;
-        CancelCreateInternal();
-    }
-
-    private void OpenCreateInternal()
-    {
-        showCreateUser = true;
-        createUserEditContext = new EditContext(newUser);
-    }
-
-    private void CancelCreateInternal()
-    {
-        newUser = new();
-        createUserEditContext = new EditContext(newUser); // clears validation messages
-        showCreateUser = false;
-    }
 
     private sealed class NewUserModel
     {
@@ -396,5 +322,32 @@ else
         [Required, StringLength(100, MinimumLength = 6)]
         public string? Password { get; set; }
         public bool IsAdmin { get; set; }
+    }
+
+
+    // Toggles Card
+    private EditContext? ToggleCard;
+
+    private bool IsExpanded = false;
+
+    private void ToggleCardBox()
+    {
+        if (IsExpanded)
+            CancelAddUser();
+        else
+            OpenAddUser();
+    }
+
+    private void OpenAddUser()
+    {
+        IsExpanded = true;
+        ToggleCard = new EditContext(newUser);
+    }
+
+    private void CancelAddUser()
+    {
+        newUser = new();
+        ToggleCard = new EditContext(newUser); // clears validation messages
+        IsExpanded = false;
     }
 }
