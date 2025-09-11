@@ -1,19 +1,16 @@
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using PunchList.Models;
 
 namespace PunchList.Data;
-public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
-{
+public class ApplicationDbContext : IdentityDbContext<ApplicationUser> {
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { }
 
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<TaskItem> TaskItems => Set<TaskItem>();
     public DbSet<SubTaskItem> SubTaskItems => Set<SubTaskItem>();
 
-    protected override void OnModelCreating(ModelBuilder b)
-    {
+    protected override void OnModelCreating(ModelBuilder b) {
         base.OnModelCreating(b);
 
         // Relations + cascade

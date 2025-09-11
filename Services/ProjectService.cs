@@ -17,6 +17,24 @@ namespace PunchList.Services
                 .ToListAsync();
         }
 
+        public async Task<List<Project>> GetActiveProjectsAsync()
+        {
+            return await _db.Projects.AsNoTracking()
+                .Where(p => !p.IsCompleted)
+                .Include(p => p.Tasks).ThenInclude(t => t.SubTasks)
+                .OrderBy(p => p.CreatedAt)
+                .ToListAsync();
+        }
+
+        public async Task<List<Project>> GetArchivedProjectsAsync()
+        {
+            return await _db.Projects.AsNoTracking()
+                .Where(p => p.IsCompleted)
+                .Include(p => p.Tasks).ThenInclude(t => t.SubTasks)
+                .OrderByDescending(p => p.CompletedAt)
+                .ToListAsync();
+        }
+
         public async Task<Project?> GetProjectByIdAsync(int id)
         {
             return await _db.Projects.AsNoTracking()
@@ -50,6 +68,32 @@ namespace PunchList.Services
         {
             _db.Projects.Remove(project);
             await _db.SaveChangesAsync();
+        }
+
+        public async Task CompleteProjectAsync(int id)
+        {
+            var existing = await _db.Projects.FirstOrDefaultAsync(p => p.Id == id);
+            if (existing is null) return;
+
+            if (!existing.IsCompleted)
+            {
+                existing.IsCompleted = true;
+                existing.CompletedAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync();
+            }
+        }
+
+        public async Task ReopenProjectAsync(int id)
+        {
+            var existing = await _db.Projects.FirstOrDefaultAsync(p => p.Id == id);
+            if (existing is null) return;
+
+            if (existing.IsCompleted)
+            {
+                existing.IsCompleted = false;
+                existing.CompletedAt = default; // clear the completion timestamp
+                await _db.SaveChangesAsync();
+            }
         }
     }
 }

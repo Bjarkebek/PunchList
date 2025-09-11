@@ -18,4 +18,12 @@
     </PackageReference>
   </ItemGroup>
 
+  <ItemGroup>
+    <EditorConfigFiles Remove="C:\Users\Bjarke\source\repos\KURSUS_11_AUG\PunchList\.editorconfig" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="C:\Users\Bjarke\source\repos\KURSUS_11_AUG\PunchList\.editorconfig" />
+  </ItemGroup>
+
 </Project>

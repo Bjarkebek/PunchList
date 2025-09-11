@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using PunchList.Components;
@@ -67,7 +66,7 @@ app.UseAuthorization();
 app.MapRazorComponents<App>()
    .AddInteractiveServerRenderMode();
 
-app.MapAdditionalIdentityEndpoints();
+app.MapAdditionalIdentityEndpoints(); // from PunchList.Components.Account
 
 // ---- demo data ----
 using (var scope = app.Services.CreateScope())
@@ -107,10 +106,10 @@ using (var scope = app.Services.CreateScope())
             Title = "task test 1",
             Description = "desc test 1",
             Order = 1,
-            SubTasks = new List<SubTaskItem> { 
-                new() { Title = "task 1 title test 1" }, 
+            SubTasks = new List<SubTaskItem> {
+                new() { Title = "task 1 title test 1" },
                 new() { Title = "task 1 title test 2" },
-                new() { Title = "task 1 title test 3" }, 
+                new() { Title = "task 1 title test 3" },
                 new() { Title = "task 1 title test 3" }
             }
         });
