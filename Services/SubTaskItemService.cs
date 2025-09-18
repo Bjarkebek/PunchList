@@ -9,6 +9,7 @@ namespace PunchList.Services
         private readonly ApplicationDbContext _db;
         public SubTaskItemService(ApplicationDbContext db) => _db = db;
 
+        // Gets subtasks for a task
         public async Task<List<SubTaskItem>> GetForTaskAsync(int taskItemId)
         {
             return await _db.SubTaskItems
@@ -18,11 +19,13 @@ namespace PunchList.Services
                 .ToListAsync();
         }
 
+        // Finds a subtask by id
         public async Task<SubTaskItem?> GetAsync(int id)
         {
             return await _db.SubTaskItems.FindAsync(id);
         }
 
+        // Creates a new subtask
         public async Task<SubTaskItem> CreateAsync(int taskItemId, string title, int? order = null)
         {
             if (string.IsNullOrWhiteSpace(title))
@@ -48,6 +51,7 @@ namespace PunchList.Services
             return st;
         }
 
+        // Updates fields on a subtask
         public async Task<SubTaskItem?> UpdateAsync(int id, string? title = null, bool? isDone = null, int? order = null)
         {
             var st = await _db.SubTaskItems.FirstOrDefaultAsync(x => x.Id == id);
@@ -61,6 +65,7 @@ namespace PunchList.Services
             return st;
         }
 
+        // Deletes a subtask if it exists
         public async Task DeleteAsync(int id)
         {
             var st = await _db.SubTaskItems.FindAsync(id);
@@ -69,6 +74,7 @@ namespace PunchList.Services
             await _db.SaveChangesAsync();
         }
 
+        // Toggles the completion state of a subtask
         public async Task ToggleSubTaskAsync(int taskItemId, int subTaskId)
         {
             var st = await _db.SubTaskItems.FirstOrDefaultAsync(x => x.Id == subTaskId && x.TaskItemId == taskItemId);

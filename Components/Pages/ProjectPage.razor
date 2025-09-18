@@ -32,7 +32,7 @@ else
             <div class="text-muted mb-3">@project.Description</div>
         }
         @{
-            // Calculations to progress bar
+            // Progress bar calculation
             var totalTasks = tasks?.Count ?? 0;
             var completedTasks = tasks?.Count(t => t.Status == PunchList.Models.TaskStatus.Completed) ?? 0;
             var pct = totalTasks == 0 ? 0 : (int)(100.0 * completedTasks / totalTasks);
@@ -42,6 +42,7 @@ else
         <lang class="progress mb-2" style="height:8px;"><lang class="@($"progress-bar {(pct == 100 ? "bg-success" : "progress-bar")}")" style="width:@pct%;"></lang></lang>
         <small class="text-muted">@completedTasks/@totalTasks completed</small>
 
+        @* Allow completing the project when all tasks are done *@
         @if (allDone && project is not null && !project.IsCompleted)
         {
             <div class="mt-3">
@@ -83,6 +84,7 @@ else
                             }
                         </div>
                         <div class="d-flex align-items-center gap-2">
+                            @* Toggle details (subtasks) *@
                             <button class="btn btn-outline-secondary"
                                     @onclick="() => ToggleTask(t.Id)">
                                 @(IsTaskExpanded(t.Id) ? "Hide ▾" : "Show ▸")
@@ -102,6 +104,7 @@ else
                                 {
                                     <li class="list-group-item d-flex justify-content-between align-items-center">
                                         <span>@st.Title</span>
+                                        @* Inline toggle of subtask state *@
                                         <input type="checkbox"
                                                @bind="st.IsDone"
                                                @bind:after="async () => await SubTaskItemService.ToggleSubTaskAsync(t.Id, st.Id)" />
@@ -139,21 +142,22 @@ else
     [CascadingParameter]
     public Task<AuthenticationState> AuthenticationStateTask { get; set; } = default!;
 
+    // Route params and project instance
     [Parameter]
     public int projectId { get; set; }
 
     [Parameter]
     public Project project { get; set; }
 
+    // Loaded tasks for this project
     List<TaskItem>? tasks;
 
+    // Current user id for actions
     string? userId;
-
-
-
 
     protected override async Task OnInitializedAsync()
     {
+        // Resolve user id and load project/tasks
         var authState = await AuthenticationStateTask;
         userId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
@@ -161,7 +165,7 @@ else
         await ReloadTasksAsync();
     }
 
-
+    // Loads tasks for the project and prepares CompletedBy name cache.
     private async Task ReloadTasksAsync()
     {
         var all = await TaskItemService.LoadTasks();
@@ -184,7 +188,7 @@ else
             completedByNames[id] = name;
         }
 
-        // Auto-reopen if the project is marked completed but tasks aren't all completed
+        // Auto-reopen if project marked complete but tasks aren't all complete
         if (project is not null && project.IsCompleted)
         {
             var total = tasks.Count;
@@ -201,20 +205,15 @@ else
         await InvokeAsync(StateHasChanged);
     }
 
-
-    // Cache for CompletedByUserId -> display name
+    // Cache: CompletedByUserId -> display name
     private readonly Dictionary<string, string> completedByNames = new();
-
     private string GetCompletedByName(string? id)
         => (completedByNames.TryGetValue(id, out var n) ? n : "Unknown");
-
-
-
-
 
     // A task can be completed only when it has no subtasks or all subtasks are done.
     bool CanComplete(TaskItem t) => t.SubTasks?.All(st => st.IsDone) ?? true;
 
+    // Completes/Reopens task, then refreshes
     private async Task CompleteAsync(TaskItem t)
     {
         if (string.IsNullOrEmpty(userId)) return;
@@ -228,6 +227,7 @@ else
         await ReloadTasksAsync();
     }
 
+    // Completes the project and navigates away
     private async Task CompleteProjectAsync()
     {
         if (project is null) return;
@@ -235,21 +235,16 @@ else
         Nav.NavigateTo("/dashboard");
     }
 
-
-
-    // Toggles Tasks cards
+    // Expanded state per task card
     private readonly HashSet<int> expandedTaskIds = new();
-
     private bool IsTaskExpanded(int taskId) => expandedTaskIds.Contains(taskId);
-
     private void ToggleTask(int taskId)
     {
         if (!expandedTaskIds.Remove(taskId))
             expandedTaskIds.Add(taskId);
     }
 
-
-    // JS method to go back to previous page
+    // Back navigation via JS history
     private async Task GoBack()
     {
         await JS.InvokeVoidAsync("history.back");

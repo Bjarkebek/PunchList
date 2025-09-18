@@ -2,13 +2,16 @@
 
 namespace PunchList.Models;
 
-public enum TaskStatus {
+public enum TaskStatus
+{
     New,
     InProgress,
     Completed
 }
 
-public class TaskItem {
+public class TaskItem
+{
+    [Key]
     public int Id { get; set; } //PK
     public int ProjectId { get; set; } //FK
     [Required, MaxLength(200)]

@@ -24,6 +24,7 @@
 <div class="card mb-5">
     <div class="card-body row g-2 align-items-end">
         <div class="col-md-4">
+            @* Project filter (client-side) *@
             <h4 class="form-label mb-3">Projects</h4>
             <select class="form-select" @bind="SelectedProjectId">
                 <option value="" class="text-muted">Show all</option>
@@ -46,6 +47,7 @@ else if (tasks.Count == 0)
 }
 else
 {
+    @* Task list, grouped by ProjectId then DueDate *@
     @foreach (var t in tasks.OrderBy(t => t.ProjectId).ThenBy(t => t.DueDate))
     {
         <div class="card mb-2">
@@ -65,6 +67,7 @@ else
                         }
                     </div>
                     <div class="d-flex align-items-center gap-2">
+                        @* Toggle details (subtasks) *@
                         <button class="btn btn-outline-secondary"
                                 @onclick="() => ToggleTask(t.Id)">
                             @(IsTaskExpanded(t.Id) ? "Hide ▾" : "Show ▸")
@@ -83,6 +86,7 @@ else
                             {
                                 <li class="list-group-item d-flex justify-content-between align-items-center">
                                     <span>@st.Title</span>
+                                    @* Inline update of subtask IsDone *@
                                     <input type="checkbox"
                                            @bind="st.IsDone"
                                            @bind:after="async () => await SubTaskItemService.UpdateAsync(st.Id, isDone: st.IsDone)" />
@@ -96,6 +100,7 @@ else
                     </ul>
 
                     <div class="d-flex gap-2 mt-4">
+                        @* Complete/Reopen actions *@
                         @if (t.Status != PunchList.Models.TaskStatus.Completed)
                         {
                             <button class="btn btn-sm btn-success"
@@ -110,6 +115,7 @@ else
                         }
                     </div>
 
+                    @* Completion metadata *@
                     @if (t.Status == PunchList.Models.TaskStatus.Completed)
                     {
                         <div class="mt-2 small text-muted">
@@ -130,42 +136,41 @@ else
     [CascadingParameter]
     public Task<AuthenticationState> AuthenticationStateTask { get; set; } = default!;
 
+    // Data sources for filter and display
     List<Project> projects = new();
     List<TaskItem>? tasks;
     List<TaskItem>? allTasks;
 
+    // Current user id for completion actions
     string? userId;
-
-
 
     protected override async Task OnInitializedAsync()
     {
-        // Load user id
+        // Resolve user id
         var authState = await AuthenticationStateTask;
         userId = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
-        // Only active projects for filtering
+        // Load project list for filter (active only)
         projects = await ProjectService.GetActiveProjectsAsync();
 
+        // Map projectId -> name for quick lookup
         projectNames.Clear();
         foreach (var p in projects)
             projectNames[p.Id] = p.Name;
 
+        // Load all tasks (service already aggregates)
         allTasks = await TaskItemService.LoadTasks();
         await ApplyFilterAsync();
     }
-
 
     private async Task ReloadTasksAsync()
     {
+        // Reload and re-apply filter
         allTasks = await TaskItemService.LoadTasks();
         await ApplyFilterAsync();
     }
 
-
-
-
-    // Selected project for filtering
+    // Selected project for filtering (null/empty => all)
     string? _selectedProjectId;
     string? SelectedProjectId
     {
@@ -177,11 +182,9 @@ else
         }
     }
 
-
-
+    // Applies the in-memory filter and prepares display name cache
     private async Task ApplyFilterAsync()
     {
-
         if (string.IsNullOrWhiteSpace(SelectedProjectId))
         {
             tasks = allTasks.ToList();
@@ -215,9 +218,7 @@ else
         StateHasChanged();
     }
 
-
-
-    // CompletedBy- and Project-name
+    // CompletedBy- and Project-name caches/helpers
     private readonly Dictionary<string, string> completedByNames = new();
     private readonly Dictionary<int, string> projectNames = new();
 
@@ -227,13 +228,10 @@ else
     private string GetProjectName(int projectId)
         => projectNames.TryGetValue(projectId, out var name) ? name : $"Project {projectId}";
 
-
-
-
-
     // A task can be completed only when it has no subtasks or all subtasks are done.
     bool CanComplete(TaskItem t) => t.SubTasks?.All(s => s.IsDone) ?? true;
 
+    // Marks task completed with current userId and refreshes
     private async Task CompleteAsync(TaskItem t)
     {
         if (string.IsNullOrEmpty(userId)) return;
@@ -241,29 +239,23 @@ else
         await ReloadTasksAsync();
     }
 
+    // Reopens a task and refreshes
     private async Task ReopenAsync(TaskItem t)
     {
         await TaskItemService.ReopenTask(t.Id);
         await ReloadTasksAsync();
     }
 
-
-
-
-    // Toggle state per task
+    // Expanded state per task card
     private readonly HashSet<int> expandedTaskIds = new();
-
     private bool IsTaskExpanded(int taskId) => expandedTaskIds.Contains(taskId);
-
     private void ToggleTask(int taskId)
     {
         if (!expandedTaskIds.Remove(taskId))
             expandedTaskIds.Add(taskId);
     }
 
-
-
-    // JS method to go back to previous page
+    // Back navigation via JS history
     private async Task GoBack()
     {
         await JS.InvokeVoidAsync("history.back");

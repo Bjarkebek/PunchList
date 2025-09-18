@@ -9,14 +9,17 @@ namespace PunchList.Services
         private readonly ApplicationDbContext _db;
         public ProjectService(ApplicationDbContext db) => _db = db;
 
+        // Gets all projects (active + archived)
         public async Task<List<Project>> GetProjectsAsync()
         {
+            // AsNoTracking for read-only queries; Include to eager-load graph
             return await _db.Projects.AsNoTracking()
                 .Include(p => p.Tasks).ThenInclude(t => t.SubTasks)
                 .OrderBy(p => p.CreatedAt)
                 .ToListAsync();
         }
 
+        // Gets only active (not completed) projects
         public async Task<List<Project>> GetActiveProjectsAsync()
         {
             return await _db.Projects.AsNoTracking()
@@ -26,6 +29,7 @@ namespace PunchList.Services
                 .ToListAsync();
         }
 
+        // Gets only archived (completed) projects
         public async Task<List<Project>> GetArchivedProjectsAsync()
         {
             return await _db.Projects.AsNoTracking()
@@ -35,6 +39,7 @@ namespace PunchList.Services
                 .ToListAsync();
         }
 
+        // Gets a project by id
         public async Task<Project?> GetProjectByIdAsync(int id)
         {
             return await _db.Projects.AsNoTracking()
@@ -42,34 +47,32 @@ namespace PunchList.Services
                 .FirstOrDefaultAsync(p => p.Id == id);
         }
 
+        // Adds a new project
         public async Task AddProjectAsync(Project project)
         {
             _db.Projects.Add(project);
             await _db.SaveChangesAsync();
         }
 
-        // Only update fields on the tracked entity to avoid attaching a second instance.
+        // Updates fields of a project
         public async Task UpdateProjectAsync(Project project)
         {
-            var existing = await _db.Projects.FirstOrDefaultAsync(p => p.Id == project.Id);
-            if (existing is null)
-            {
-                // Optionally throw or no-op
-                return;
-            }
+            var p = await _db.Projects.FirstOrDefaultAsync(p => p.Id == project.Id);
 
-            existing.Name = project.Name;
-            existing.Description = project.Description;
+            p.Name = project.Name;
+            p.Description = project.Description;
 
             await _db.SaveChangesAsync();
         }
 
+        // Deletes a project
         public async Task DeleteProjectAsync(Project project)
         {
             _db.Projects.Remove(project);
             await _db.SaveChangesAsync();
         }
 
+        // Marks a project as completed
         public async Task CompleteProjectAsync(int id)
         {
             var existing = await _db.Projects.FirstOrDefaultAsync(p => p.Id == id);
@@ -83,6 +86,7 @@ namespace PunchList.Services
             }
         }
 
+        // Reopens a project
         public async Task ReopenProjectAsync(int id)
         {
             var existing = await _db.Projects.FirstOrDefaultAsync(p => p.Id == id);

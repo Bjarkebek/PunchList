@@ -23,17 +23,9 @@
 }
 else
 {
-    @if (!string.IsNullOrWhiteSpace(message))
-    {
-        <div class="alert alert-success">@message</div>
-    }
-    @if (!string.IsNullOrWhiteSpace(error))
-    {
-        <div class="alert alert-danger">@error</div>
-    }
-
     <div class="row g-4">
         <div class="col-12">
+            @* Create User (collapsible) *@
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center" style="cursor:pointer;" @onclick="ToggleCardBox">
                     <span class="fw-semibold">Create User</span>
@@ -79,6 +71,7 @@ else
         </div>
 
         <div class="col-12">
+            @* User table with role and actions *@
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span class="fw-semibold">All Users</span>
@@ -142,30 +135,38 @@ else
 }
 
 @code {
+    // Role names
     private const string AdminRole = "Admin";
     private const string UserRole = "User";
+
+    // Page state
     private bool isLoading = true;
-    private string? message;
     private string? error;
 
+    // Data and caches
     private List<ApplicationUser>? users;
     private readonly Dictionary<string, List<string>> userRoles = new();
+
+    // Auth context for current user id (for potential self-protection)
     [CascadingParameter] private Task<AuthenticationState> AuthenticationStateTask { get; set; } = default!;
     private string? currentUserId;
 
+    // Create user model
     private NewUserModel newUser = new();
-
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
+            // Ensure required roles exist
             await EnsureRoleAsync(UserRole);
             await EnsureRoleAsync(AdminRole);
 
+            // Capture current user id
             var auth = await AuthenticationStateTask;
             currentUserId = auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 
+            // Load users and role map
             await LoadUsersAsync();
         }
         catch (Exception ex)
@@ -178,6 +179,7 @@ else
         }
     }
 
+    // Ensures role exists, throws if cannot create
     private async Task EnsureRoleAsync(string roleName)
     {
         if (!await RoleManager.RoleExistsAsync(roleName))
@@ -190,6 +192,7 @@ else
         }
     }
 
+    // Loads users and their roles into cache
     private async Task LoadUsersAsync()
     {
         users = UserManager.Users.OrderBy(u => u.UserName).ToList();
@@ -200,6 +203,7 @@ else
         }
     }
 
+    // Creates a user, assigns User role and optionally Admin
     private async Task CreateUserAsync()
     {
         try
@@ -242,10 +246,10 @@ else
                 }
             }
 
+            // Reset form and reload list
             newUser = new();
             ToggleCard = new EditContext(newUser); // reset validation state
             await LoadUsersAsync();
-            message = addAdmin ? "User created and granted Admin." : "User created.";
         }
         catch (Exception ex)
         {
@@ -253,6 +257,7 @@ else
         }
     }
 
+    // Deletes a user
     private async Task DeleteUser(ApplicationUser user)
     {
         try
@@ -265,7 +270,6 @@ else
             }
 
             await LoadUsersAsync();
-            message = $"User '{user.UserName}' deleted.";
         }
         catch (Exception ex)
         {
@@ -273,8 +277,7 @@ else
         }
     }
 
-
-
+    // Role changes
     private async Task MakeAdmin(ApplicationUser user)
     {
         try
@@ -287,7 +290,6 @@ else
                 return;
             }
             await LoadUsersAsync();
-            message = $"Granted Admin to {user.UserName}.";
         }
         catch (Exception ex)
         {
@@ -306,14 +308,12 @@ else
                 return;
             }
             await LoadUsersAsync();
-            message = $"Removed Admin from {user.UserName}.";
         }
         catch (Exception ex)
         {
             error = $"Failed to remove Admin: {ex.Message}";
         }
     }
-
 
     private sealed class NewUserModel
     {
@@ -326,10 +326,8 @@ else
         public bool IsAdmin { get; set; }
     }
 
-
-    // Toggles Card
+    // Collapsible "Create User" form state
     private EditContext? ToggleCard;
-
     private bool IsExpanded = false;
 
     private void ToggleCardBox()
@@ -353,10 +351,7 @@ else
         IsExpanded = false;
     }
 
-
-
-
-    // JS method to go back to previous page
+    // Back navigation via JS history
     private async Task GoBack()
     {
         await JS.InvokeVoidAsync("history.back");

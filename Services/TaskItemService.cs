@@ -7,12 +7,9 @@ namespace PunchList.Services
     public class TaskItemService : ITaskItemService
     {
         private readonly ApplicationDbContext _db;
+        public TaskItemService(ApplicationDbContext db) => _db = db;
 
-        public TaskItemService(ApplicationDbContext db)
-        {
-            _db = db;
-        }
-
+        // Loads all tasks including subtasks
         public async Task<List<TaskItem>> LoadTasks()
         {
             return await _db.TaskItems
@@ -23,6 +20,7 @@ namespace PunchList.Services
                 .ToListAsync();
         }
 
+        // Creates a new task
         public async Task<TaskItem> CreateTask(TaskItem taskItem)
         {
             _db.TaskItems.Add(taskItem);
@@ -30,6 +28,7 @@ namespace PunchList.Services
             return taskItem;
         }
 
+        // Updates fields of a task
         public async Task UpdateTask(int id, string title, string? description, DateTime? dueDate)
         {
             var t = await _db.TaskItems.FindAsync(id);
@@ -41,6 +40,7 @@ namespace PunchList.Services
             await _db.SaveChangesAsync();
         }
 
+        // Deletes a task
         public async Task DeleteTask(int id)
         {
             var t = await _db.TaskItems.FindAsync(id);
@@ -49,6 +49,7 @@ namespace PunchList.Services
             await _db.SaveChangesAsync();
         }
 
+        // Marks a task as completed
         public async Task CompleteTask(int id, string uId)
         {
             var t = await _db.TaskItems.FindAsync(id);
@@ -59,6 +60,7 @@ namespace PunchList.Services
             await _db.SaveChangesAsync();
         }
 
+        // Reopens a task
         public async Task ReopenTask(int id)
         {
             var t = await _db.TaskItems.FindAsync(id);

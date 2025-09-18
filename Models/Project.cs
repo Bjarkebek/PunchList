@@ -2,7 +2,9 @@
 
 namespace PunchList.Models;
 
-public class Project {
+public class Project
+{
+    [Key]
     public int Id { get; set; } //PK
     [Required, MaxLength(150)]
     public string Name { get; set; } = "";

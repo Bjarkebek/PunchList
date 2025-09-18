@@ -2,7 +2,9 @@
 
 namespace PunchList.Models;
 
-public class SubTaskItem {
+public class SubTaskItem
+{
+    [Key]
     public int Id { get; set; } //PK
     public int TaskItemId { get; set; } //FK
     [Required, MaxLength(200)]

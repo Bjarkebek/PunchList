@@ -15,7 +15,7 @@
     <button class="btn btn-outline-secondary" @onclick="GoBack">← Back</button>
 </div>
 
-
+@* Main content switching between loading/not found and edit UI *@
 @if (isLoading)
 {
     <p>Loading...</p>
@@ -26,6 +26,7 @@ else if (project is null)
 }
 else
 {
+    @* Project header with inline edit for name/description *@
     <div class="d-flex justify-content-between align-items-center mt-4">
         <div class="flex-grow-1">
             @if (!isEditingProject)
@@ -78,6 +79,7 @@ else
         <div class="alert alert-danger">@error</div>
     }
 
+    @* Add Task (collapsible) *@
     <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center" style="cursor:pointer;" @onclick="ToggleCardBox">
             <span class="fw-semibold">Add Task</span>
@@ -116,6 +118,7 @@ else
         }
     </div>
 
+    @* Task list with inline edit and subtasks management *@
     @if (tasks.Count == 0)
     {
         <p class="text-muted">No tasks.</p>
@@ -167,11 +170,9 @@ else
                                     <span class="text-muted small">Due: @t.DueDate.Value.ToShortDateString()</span>
                                 }
                             }
-
-
-
                         </div>
                         <div class="d-flex align-items-center gap-2">
+                            @* Status badge and action buttons *@
                             <span class="badge @(t.Status == PunchList.Models.TaskStatus.Completed ? "status-completed" : t.Status == PunchList.Models.TaskStatus.InProgress ? "status-inprogress" : "status-new")">@t.Status</span>
                             @if (!IsTaskEditing(t.Id) && IsTaskExpanded(t.Id))
                             {
@@ -192,6 +193,7 @@ else
                         <div class="d-flex justify-content-between">
                             <div class="fw-semibold">Sub tasks:</div>
                             <div class="d-flex gap-2 mr-4">
+                                @* Add new subtask inline *@
                                 <input class="form-control form-control-sm" style="width:240px" placeholder="New subtask title"
                                        @bind="newSubTaskTitle[t.Id]" @bind:event="oninput" />
                                 <button class="btn btn-sm btn-outline-primary"
@@ -209,6 +211,7 @@ else
                                 {
                                     <li class="list-group-item d-flex justify-content-between">
                                         <div class="d-flex align-items-center gap-2">
+                                            @* Toggle subtask completion *@
                                             <input type="checkbox"
                                                    checked="@st.IsDone"
                                                    @onchange="() => SubTaskItemService.ToggleSubTaskAsync(t.Id, st.Id)" />
@@ -237,14 +240,15 @@ else
 @code {
     [Parameter] public int projectId { get; set; }
 
+    // Project and its tasks
     private Project? project;
     private List<TaskItem> tasks = new();
 
+    // Page state and feedback
     private bool isLoading = true;
     private string? error;
 
-
-
+    // New task model
     private NewTaskModel newTask = new();
 
     private sealed class NewTaskModel
@@ -278,7 +282,8 @@ else
         public DateTime? DueDate { get; set; }
     }
 
-    private readonly Dictionary<int, string> newSubTaskTitle = new(); // if creating multiple subtask simultaneously
+    // Subtask title buffer per task
+    private readonly Dictionary<int, string> newSubTaskTitle = new();
 
     // Track which tasks are being edited and their models
     private readonly HashSet<int> editingTaskIds = new();
@@ -290,6 +295,7 @@ else
         isLoading = false;
     }
 
+    // Loads project and tasks and initializes per-task UI state
     private async Task ReloadAsync()
     {
         project = await ProjectService.GetProjectByIdAsync(projectId);
@@ -303,6 +309,7 @@ else
         StateHasChanged();
     }
 
+    // Create/Delete task operations
     private async Task CreateTaskAsync()
     {
         try
@@ -362,6 +369,7 @@ else
         }
     }
 
+    // Subtask operations
     private async Task AddSubTask(int taskId)
     {
         try
@@ -390,7 +398,7 @@ else
         }
     }
 
-    // Task editing
+    // Task editing state
     private bool IsTaskEditing(int taskId) => editingTaskIds.Contains(taskId);
 
     private void OpenEditTask(TaskItem t)
@@ -435,21 +443,17 @@ else
         }
     }
 
-    // Toggles Tasks cards
+    // Task expand/collapse state
     private readonly HashSet<int> expandedTaskIds = new();
-
     private bool IsTaskExpanded(int taskId) => expandedTaskIds.Contains(taskId);
-
     private void ToggleTask(int taskId)
     {
         if (!expandedTaskIds.Remove(taskId))
             expandedTaskIds.Add(taskId);
     }
 
-
-    // Toggles Card
+    // Collapsible "Add Task" form state
     private EditContext? ToggleCard;
-
     private bool IsExpanded = false;
 
     private void ToggleCardBox()
@@ -473,7 +477,7 @@ else
         IsExpanded = false;
     }
 
-    // Project edit
+    // Project edit form/model
     private EditContext? ProjectEditContext;
 
     private async Task UpdateProject()
@@ -522,11 +526,7 @@ else
         isEditingProject = false;
     }
 
-
-
-
-
-    // JS method to go back to previous page
+    // Back navigation via JS history
     private async Task GoBack()
     {
         await JS.InvokeVoidAsync("history.back");

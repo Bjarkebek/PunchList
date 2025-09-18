@@ -51,6 +51,7 @@ else
                     </div>
                     <div class="card-footer">
                         <div class="d-flex justify-content-between align-items-center">
+                            @* Reopen moves project back to active list *@
                             <button class="btn btn-sm btn-outline-secondary" @onclick="() => ReopenProject(p.Id)">↺ Reopen</button>
                             <a class="btn btn-sm btn-primary" href="/project/@p.Id">Show Project</a>
                         </div>
@@ -62,6 +63,7 @@ else
 }
 
 @code {
+    // Archived projects list
     List<Project>? Projects;
 
     protected override async Task OnInitializedAsync()
@@ -69,12 +71,14 @@ else
         await LoadProjects();
     }
 
+    // Loads archived projects
     private async Task LoadProjects()
     {
         Projects = await ProjectService.GetArchivedProjectsAsync();
         StateHasChanged();
     }
 
+    // Reopen archived project and refresh list
     private async Task ReopenProject(int Id)
     {
         await ProjectService.ReopenProjectAsync(Id);
@@ -82,7 +86,7 @@ else
     }
 
 
-    // JS method to go back to previous page
+    // Back navigation via JS history
     private async Task GoBack()
     {
         await JS.InvokeVoidAsync("history.back");
